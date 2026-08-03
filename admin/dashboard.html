@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Panel Administrativo - Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-6xl mx-auto p-6 space-y-8">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">Panel de Dotación</h1>
+            <p class="text-slate-500 text-sm" id="periodoInfo">Cargando información del periodo...</p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="stats"></div>
+
+        <div>
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-500 mb-3">Accesos rápidos</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <a href="entrega.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">assignment_turned_in</span>
+                    <p class="font-bold text-sm">Registrar Entrega</p>
+                    <p class="text-xs text-slate-500">Seleccionar empleado, items y generar el acta en PDF.</p>
+                </a>
+                <a href="informe.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">summarize</span>
+                    <p class="font-bold text-sm">Informe para Proveedor</p>
+                    <p class="text-xs text-slate-500">Consolidado por producto, tipo y talla, exportable en PDF/Excel.</p>
+                </a>
+                <a href="periodos.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">event</span>
+                    <p class="font-bold text-sm">Gestionar Periodos</p>
+                    <p class="text-xs text-slate-500">Crear, editar, activar o eliminar periodos de dotación.</p>
+                </a>
+                <a href="empleados.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">groups</span>
+                    <p class="font-bold text-sm">Empleados</p>
+                    <p class="text-xs text-slate-500">Agregar, editar o dar de baja empleados.</p>
+                </a>
+                <a href="catalogo.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">checkroom</span>
+                    <p class="font-bold text-sm">Catálogo de Dotación</p>
+                    <p class="text-xs text-slate-500">Tipos de prenda por cargo, tallas y tipos de calzado.</p>
+                </a>
+                <a href="entregas.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">history</span>
+                    <p class="font-bold text-sm">Historial de Entregas</p>
+                    <p class="text-xs text-slate-500">Ver y volver a descargar actas ya generadas.</p>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('dashboard');
+
+        function statCard(icon, label, value, color) {
+            return `<div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                <span class="material-symbols-outlined ${color} text-2xl">${icon}</span>
+                <p class="text-2xl font-black text-slate-800 mt-2">${value}</p>
+                <p class="text-xs text-slate-500 font-medium">${label}</p>
+            </div>`;
+        }
+
+        async function cargarDashboard() {
+            const periodo = await apiGet('../api/periodos.php?activo=1');
+            const statsEl = document.getElementById('stats');
+
+            if (!periodo) {
+                document.getElementById('periodoInfo').innerText = 'No hay un periodo activo en este momento.';
+                statsEl.innerHTML = statCard('event_busy', 'Sin periodo activo', '--', 'text-slate-400');
+                return;
+            }
+
+            document.getElementById('periodoInfo').innerText = `Periodo activo: ${periodo.nombre}`;
+
+            const [solicitudes, empleados, entregas] = await Promise.all([
+                apiGet(`../api/solicitudes.php?periodo_id=${encodeURIComponent(periodo.id)}`),
+                apiGet('../api/empleados.php'),
+                apiGet(`../api/entregas.php?periodo_id=${encodeURIComponent(periodo.id)}`),
+            ]);
+
+            const pendientes = solicitudes.filter(s => s.estado !== 'entregado').length;
+
+            statsEl.innerHTML = [
+                statCard('groups', 'Empleados activos', empleados.filter(e => e.activo).length, 'text-blue-500'),
+                statCard('assignment', 'Solicitudes del periodo', solicitudes.length, 'text-brand-primary'),
+                statCard('pending_actions', 'Pendientes por entregar', pendientes, 'text-amber-500'),
+                statCard('task_alt', 'Entregas realizadas', entregas.length, 'text-green-600'),
+            ].join('');
+        }
+
+        cargarDashboard();
+    </script>
+</body>
+</html>

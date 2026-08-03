@@ -1,0 +1,14 @@
+{
+  "tallas_pantalon": ["6", "8", "10", "12", "14", "16", "18", "28", "30", "32", "34", "36", "38", "40", "NINGUNO", "Negociacion"],
+  "tallas_camisa": ["S", "M", "L", "XL", "XXL", "3XL"],
+  "tipos_calzado": ["Guayos", "Zapatos Puntera", "Bota Pantanera", "Negociacion"],
+  "relacion_camisas": [
+    { "cargo": "ORDENIADOR", "tipos": ["Dril Caqui"] },
+    { "cargo": "BALDEESTACA", "tipos": ["Dril Caqui", "Overol Dama", "Overol Homb."] },
+    { "cargo": "VETERINARIO", "tipos": ["Overol Homb.", "Dril Caqui", "Overol Dama", "Camibuso Azul", "Camibuso Blanco", "Camisa Oxford Btn Azul"] },
+    { "cargo": "OFICIOSVARIOS", "tipos": ["Dril Caqui"] },
+    { "cargo": "OFICINA", "tipos": ["Camisa Oxford Btn Azul", "Buso Algodon Gris", "Camisa Polo", "Camibuso Azul", "Camibuso Blanco"] },
+    { "cargo": "MAYORDOMO", "tipos": ["Camisa Oxford Btn Azul", "Dril Caqui", "Buso Algodon Gris", "Camisa Polo", "Camibuso Azul", "Camibuso Blanco"] },
+    { "cargo": "CONDUCTOR", "tipos": ["Camisa Oxford Btn Azul"] }
+  ]
+}

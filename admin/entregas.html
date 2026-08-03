@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Historial de Entregas - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-4xl mx-auto p-6 space-y-6">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800">Historial de Entregas</h1>
+                <p class="text-slate-500 text-sm">Actas ya generadas. Puedes volver a descargar el PDF cuando lo necesites.</p>
+            </div>
+            <select id="selectPeriodo" class="rounded-xl border-slate-200 py-2.5 px-3 bg-white"></select>
+        </div>
+
+        <div id="lista" class="space-y-3"></div>
+    </main>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/logo.js"></script>
+    <script src="../js/pdf-acta.js"></script>
+    <script>
+        renderAdminNav('entregas');
+        let entregas = [];
+
+        async function init() {
+            const periodos = await apiGet('../api/periodos.php');
+            document.getElementById('selectPeriodo').innerHTML = periodos.map(p =>
+                `<option value="${p.id}">${p.nombre}${p.estado === 'activo' ? ' (activo)' : ''}</option>`).join('');
+
+            const activo = periodos.find(p => p.estado === 'activo');
+            if (activo) document.getElementById('selectPeriodo').value = activo.id;
+
+            document.getElementById('selectPeriodo').addEventListener('change', cargar);
+            cargar();
+        }
+
+        async function cargar() {
+            const periodoId = document.getElementById('selectPeriodo').value;
+            entregas = await apiGet(`../api/entregas.php?periodo_id=${encodeURIComponent(periodoId)}`);
+            const cont = document.getElementById('lista');
+
+            if (!entregas.length) {
+                cont.innerHTML = '<p class="text-center text-slate-400 py-10">Sin entregas registradas para este periodo.</p>';
+                return;
+            }
+
+            cont.innerHTML = entregas.map(e => `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="font-bold text-slate-800 truncate">${e.nombre}</p>
+                        <p class="text-xs text-slate-400">C.C. ${e.cedula} · ${e.cargo} · ${e.fecha_entrega}</p>
+                        <div class="flex flex-wrap gap-1 mt-1.5">
+                            ${e.items_entregados.map(it => `<span class="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-black text-slate-600">${it.descripcion} T.${it.talla} x${it.cantidad}</span>`).join('')}
+                        </div>
+                    </div>
+                    <button onclick='redescargar(${JSON.stringify(e.id)})' class="shrink-0 flex items-center gap-1 bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl">
+                        <span class="material-symbols-outlined text-base">picture_as_pdf</span> PDF
+                    </button>
+                </div>`).join('');
+        }
+
+        function redescargar(id) {
+            const e = entregas.find(x => x.id === id);
+            if (!e) return;
+            descargarActaPDF({
+                nombre: e.nombre,
+                cedula: e.cedula,
+                cargo: e.cargo,
+                items: e.items_entregados,
+                fecha: e.fecha_entrega,
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

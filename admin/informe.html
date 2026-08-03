@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Informe para Proveedor - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24', dark: '#1e293b' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-4xl mx-auto p-6 space-y-6">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800">Informe para Proveedor</h1>
+                <p class="text-slate-500 text-sm">Consolidado de cantidades por producto, tipo y talla, listo para pedir al proveedor.</p>
+            </div>
+            <select id="selectPeriodo" class="rounded-xl border-slate-200 py-2.5 px-3 bg-white"></select>
+        </div>
+
+        <div class="bg-brand-dark text-white rounded-[2rem] p-8 flex items-baseline gap-3">
+            <p id="pCount" class="text-5xl font-black">0</p>
+            <p class="text-slate-400 text-sm font-bold uppercase">solicitudes en este periodo</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="descargarPDF()" class="flex items-center justify-center gap-2 h-14 rounded-2xl bg-brand-primary text-white font-bold shadow-lg">
+                <span class="material-symbols-outlined">picture_as_pdf</span> PDF
+            </button>
+            <button onclick="descargarExcel()" class="flex items-center justify-center gap-2 h-14 rounded-2xl bg-green-600 text-white font-bold shadow-lg">
+                <span class="material-symbols-outlined">description</span> Excel
+            </button>
+        </div>
+
+        <section class="space-y-3">
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Consolidado a pedir</h2>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                        <tr><th class="text-left p-3">Categoría</th><th class="text-left p-3">Descripción / Talla</th><th class="text-right p-3">Total Unidades</th></tr>
+                    </thead>
+                    <tbody id="tablaConsolidado"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Solicitudes por funcionario</h2>
+                <input id="buscador" oninput="renderDetalle()" placeholder="Buscar..." class="rounded-xl border-slate-200 py-2 px-3 text-sm w-48">
+            </div>
+            <div id="listaDetalle" class="space-y-2"></div>
+        </section>
+    </main>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('informe');
+        let solicitudes = [];
+        let periodoActual = null;
+
+        async function init() {
+            const periodos = await apiGet('../api/periodos.php');
+            document.getElementById('selectPeriodo').innerHTML = periodos.map(p =>
+                `<option value="${p.id}">${p.nombre}${p.estado === 'activo' ? ' (activo)' : ''}</option>`).join('');
+
+            const activo = periodos.find(p => p.estado === 'activo');
+            if (activo) document.getElementById('selectPeriodo').value = activo.id;
+            periodoActual = periodos.find(p => p.id === document.getElementById('selectPeriodo').value);
+
+            document.getElementById('selectPeriodo').addEventListener('change', async () => {
+                periodoActual = periodos.find(p => p.id === document.getElementById('selectPeriodo').value);
+                await cargar();
+            });
+
+            await cargar();
+        }
+
+        async function cargar() {
+            solicitudes = await apiGet(`../api/solicitudes.php?periodo_id=${encodeURIComponent(periodoActual.id)}`);
+            document.getElementById('pCount').innerText = solicitudes.length;
+            renderConsolidado();
+            renderDetalle();
+        }
+
+        function consolidado() {
+            const totales = {};
+            solicitudes.forEach(s => {
+                (s.items || []).forEach(it => {
+                    const key = `${it.categoria}|||${it.descripcion} - Talla ${it.talla}`;
+                    totales[key] = (totales[key] || 0) + (it.cantidad || 0);
+                });
+            });
+            return Object.entries(totales)
+                .map(([key, total]) => {
+                    const [categoria, detalle] = key.split('|||');
+                    return { categoria, detalle, total };
+                })
+                .sort((a, b) => a.categoria.localeCompare(b.categoria) || a.detalle.localeCompare(b.detalle));
+        }
+
+        function renderConsolidado() {
+            const filas = consolidado();
+            document.getElementById('tablaConsolidado').innerHTML = filas.map(f => `
+                <tr class="border-t border-slate-100">
+                    <td class="p-3">${f.categoria}</td>
+                    <td class="p-3">${f.detalle}</td>
+                    <td class="p-3 text-right font-bold">${f.total}</td>
+                </tr>`).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-8">Sin datos para este periodo.</td></tr>';
+        }
+
+        function renderDetalle() {
+            const q = document.getElementById('buscador').value.toLowerCase();
+            const filtradas = solicitudes.filter(s => s.nombre.toLowerCase().includes(q) || s.cedula.includes(q));
+
+            document.getElementById('listaDetalle').innerHTML = filtradas.map(s => `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-1">
+                        <p class="font-bold text-sm">${s.nombre}</p>
+                        <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase ${s.estado === 'entregado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">${s.estado}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-2">C.C. ${s.cedula} · ${s.cargo} · ${s.genero}</p>
+                    <div class="flex flex-wrap gap-1">
+                        ${(s.items || []).map(it => `<span class="px-2 py-0.5 bg-orange-50 text-brand-primary rounded text-[9px] font-black">${it.descripcion} T.${it.talla} x${it.cantidad}</span>`).join('')}
+                    </div>
+                </div>`).join('') || '<p class="text-center text-slate-400 py-8">Sin resultados.</p>';
+        }
+
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+
+            doc.setFontSize(18);
+            doc.setTextColor(241, 90, 36);
+            doc.text(`INFORME DE DOTACIÓN PARA PROVEEDOR - ${periodoActual.nombre}`, 14, 20);
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generado: ${new Date().toLocaleString()} | Total solicitudes: ${solicitudes.length}`, 14, 28);
+
+            const bodyDetalle = solicitudes.map(s => [
+                s.cedula, s.nombre, s.cargo, s.genero,
+                (s.items || []).map(it => `${it.descripcion} (T.${it.talla} x${it.cantidad})`).join(' / '),
+                s.estado,
+            ]);
+
+            doc.autoTable({
+                startY: 35,
+                head: [['Cédula', 'Nombre', 'Cargo', 'Género', 'Items Solicitados', 'Estado']],
+                body: bodyDetalle,
+                headStyles: { fillColor: [30, 41, 59], fontSize: 9 },
+                styles: { fontSize: 8 },
+            });
+
+            let posFinal = doc.lastAutoTable.finalY + 15;
+            if (posFinal > 150) { doc.addPage(); posFinal = 20; }
+
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.text('CONSOLIDADO PARA PEDIDO AL PROVEEDOR (TOTAL UNIDADES)', 14, posFinal);
+
+            doc.autoTable({
+                startY: posFinal + 5,
+                head: [['Categoría', 'Descripción / Talla', 'Total Unidades']],
+                body: consolidado().map(f => [f.categoria, f.detalle, f.total]),
+                headStyles: { fillColor: [241, 90, 36] },
+                columnStyles: { 2: { halign: 'center', fontStyle: 'bold' } },
+            });
+
+            doc.save(`Informe_Proveedor_${periodoActual.id}.pdf`);
+        }
+
+        function descargarExcel() {
+            const wb = XLSX.utils.book_new();
+            const filas = consolidado();
+
+            let contenido = [
+                [`INFORME DE DOTACIÓN PARA PROVEEDOR - ${periodoActual.nombre}`],
+                [`Fecha de generación: ${new Date().toLocaleString()}`],
+                [],
+                ['1. CONSOLIDADO PARA PEDIDO (TOTALES POR PRODUCTO Y TALLA)'],
+                ['Categoría', 'Descripción / Talla', 'Total Unidades a Pedir'],
+                ...filas.map(f => [f.categoria, f.detalle, f.total]),
+                [], [],
+                ['2. DETALLE DE SOLICITUDES POR FUNCIONARIO'],
+                ['Cédula', 'Nombre', 'Cargo', 'Género', 'Items Solicitados', 'Estado'],
+                ...solicitudes.map(s => [
+                    s.cedula, s.nombre, s.cargo, s.genero,
+                    (s.items || []).map(it => `${it.descripcion} (T.${it.talla} x${it.cantidad})`).join(' / '),
+                    s.estado,
+                ]),
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(contenido);
+            ws['!cols'] = [{ wch: 16 }, { wch: 45 }, { wch: 18 }, { wch: 14 }, { wch: 50 }, { wch: 12 }];
+            XLSX.utils.book_append_sheet(wb, ws, 'Informe Proveedor');
+            XLSX.writeFile(wb, `Informe_Proveedor_${periodoActual.id}.xlsx`);
+        }
+
+        init();
+    </script>
+</body>
+</html>

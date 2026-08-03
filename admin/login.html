@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Acceso Administrativo - Agropecuaria Chiquique</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #0f172a; }</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 space-y-6">
+        <div class="flex flex-col items-center gap-3">
+            <img src="../assets/logo.png" class="h-16 w-auto" alt="Agropecuaria Chiquique"/>
+            <h1 class="text-lg font-bold text-slate-800 text-center">Panel Administrativo de Dotación</h1>
+        </div>
+        <form id="formLogin" class="space-y-4">
+            <div class="space-y-1">
+                <label class="block text-sm font-medium text-slate-700">Contraseña</label>
+                <input id="password" type="password" required class="w-full rounded-xl border-slate-200 py-3 px-4 shadow-sm focus:ring-brand-primary focus:border-brand-primary" placeholder="••••••••">
+            </div>
+            <p id="errorMsg" class="hidden text-sm text-red-500 text-center"></p>
+            <button type="submit" class="w-full bg-brand-primary hover:bg-orange-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all">
+                Ingresar
+            </button>
+        </form>
+        <p class="text-center text-xs text-slate-400">
+            <a href="../index.html" class="hover:underline">← Volver al formulario de empleados</a>
+        </p>
+    </div>
+    <script>
+        document.getElementById('formLogin').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            try {
+                const res = await fetch('../api/auth.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'login', password }),
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    errorMsg.innerText = data.message || 'Contraseña incorrecta.';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = 'Error de conexión. Intenta de nuevo.';
+                errorMsg.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

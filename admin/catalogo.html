@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Catálogo de Dotación - Admin</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        .chip { display: inline-flex; align-items: center; gap: 4px; background: #fff7ed; color: #ea580c; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+        .chip button { color: #ea580c; opacity: .6; }
+        .chip button:hover { opacity: 1; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-4xl mx-auto p-6 space-y-6 pb-28">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800">Catálogo de Dotación</h1>
+                <p class="text-slate-500 text-sm">Tallas, tipos de calzado y tipos de prenda disponibles por cargo.</p>
+            </div>
+            <div id="saveStatus" class="text-xs text-green-600 font-bold hidden">Guardado ✓</div>
+        </div>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+            <h2 class="font-bold text-slate-800">Tallas de Pantalón</h2>
+            <div id="chipsPantalon" class="flex flex-wrap gap-2"></div>
+            <div class="flex gap-2">
+                <input id="inputPantalon" class="flex-1 rounded-xl border-slate-200 py-2 px-3 text-sm" placeholder="Agregar talla (ej: 42)">
+                <button onclick="agregarChip('tallas_pantalon','inputPantalon','chipsPantalon')" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold">Agregar</button>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+            <h2 class="font-bold text-slate-800">Tallas de Camisa</h2>
+            <div id="chipsCamisa" class="flex flex-wrap gap-2"></div>
+            <div class="flex gap-2">
+                <input id="inputCamisa" class="flex-1 rounded-xl border-slate-200 py-2 px-3 text-sm" placeholder="Agregar talla (ej: XXL)">
+                <button onclick="agregarChip('tallas_camisa','inputCamisa','chipsCamisa')" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold">Agregar</button>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+            <h2 class="font-bold text-slate-800">Tipos de Calzado</h2>
+            <div id="chipsCalzado" class="flex flex-wrap gap-2"></div>
+            <div class="flex gap-2">
+                <input id="inputCalzado" class="flex-1 rounded-xl border-slate-200 py-2 px-3 text-sm" placeholder="Agregar tipo (ej: Bota Impermeable)">
+                <button onclick="agregarChip('tipos_calzado','inputCalzado','chipsCalzado')" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold">Agregar</button>
+            </div>
+        </section>
+
+        <section class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="font-bold text-slate-800">Tipos de Prenda por Cargo</h2>
+                <button onclick="agregarCargo()" class="bg-brand-primary text-white text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">add</span> Cargo
+                </button>
+            </div>
+            <div id="cargos" class="space-y-3"></div>
+        </section>
+    </main>
+
+    <div class="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 p-4">
+        <div class="max-w-4xl mx-auto flex justify-end">
+            <button onclick="guardarConfig()" class="bg-brand-primary text-white font-bold px-6 py-3 rounded-xl shadow-lg">Guardar Cambios</button>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('catalogo');
+        let config = null;
+
+        async function cargar() {
+            config = await apiGet('../api/config.php');
+            renderChips('tallas_pantalon', 'chipsPantalon');
+            renderChips('tallas_camisa', 'chipsCamisa');
+            renderChips('tipos_calzado', 'chipsCalzado');
+            renderCargos();
+        }
+
+        function renderChips(key, contId) {
+            document.getElementById(contId).innerHTML = config[key].map((val, i) => `
+                <span class="chip">${val} <button onclick="quitarChip('${key}', ${i}, '${contId}')"><span class="material-symbols-outlined text-sm">close</span></button></span>
+            `).join('') || '<span class="text-xs text-slate-400">Sin elementos.</span>';
+        }
+
+        function agregarChip(key, inputId, contId) {
+            const input = document.getElementById(inputId);
+            const val = input.value.trim();
+            if (!val) return;
+            if (config[key].includes(val)) { input.value = ''; return; }
+            config[key].push(val);
+            input.value = '';
+            renderChips(key, contId);
+        }
+
+        function quitarChip(key, index, contId) {
+            config[key].splice(index, 1);
+            renderChips(key, contId);
+        }
+
+        function renderCargos() {
+            document.getElementById('cargos').innerHTML = config.relacion_camisas.map((c, ci) => `
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <input value="${c.cargo}" onchange="renombrarCargo(${ci}, this.value)" class="font-bold text-slate-800 rounded-lg border-slate-200 py-1.5 px-2 flex-1 uppercase">
+                        <button onclick="quitarCargo(${ci})" class="text-red-500 p-1.5 rounded-lg hover:bg-red-50"><span class="material-symbols-outlined text-base">delete</span></button>
+                    </div>
+                    <div class="flex flex-wrap gap-2" id="tiposCargo${ci}">
+                        ${c.tipos.map((t, ti) => `
+                            <span class="chip">${t} <button onclick="quitarTipo(${ci}, ${ti})"><span class="material-symbols-outlined text-sm">close</span></button></span>
+                        `).join('') || '<span class="text-xs text-slate-400">Sin tipos configurados.</span>'}
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="inputTipo${ci}" class="flex-1 rounded-xl border-slate-200 py-2 px-3 text-sm" placeholder="Agregar tipo de prenda...">
+                        <button onclick="agregarTipo(${ci})" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold">Agregar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renombrarCargo(ci, val) {
+            config.relacion_camisas[ci].cargo = val.toUpperCase().trim();
+        }
+
+        function agregarCargo() {
+            config.relacion_camisas.push({ cargo: 'NUEVO_CARGO', tipos: [] });
+            renderCargos();
+        }
+
+        function quitarCargo(ci) {
+            if (!confirm(`¿Eliminar la configuración de prendas para "${config.relacion_camisas[ci].cargo}"?`)) return;
+            config.relacion_camisas.splice(ci, 1);
+            renderCargos();
+        }
+
+        function agregarTipo(ci) {
+            const input = document.getElementById(`inputTipo${ci}`);
+            const val = input.value.trim();
+            if (!val) return;
+            config.relacion_camisas[ci].tipos.push(val);
+            renderCargos();
+        }
+
+        function quitarTipo(ci, ti) {
+            config.relacion_camisas[ci].tipos.splice(ti, 1);
+            renderCargos();
+        }
+
+        async function guardarConfig() {
+            try {
+                await apiSend('../api/config.php', 'POST', config);
+                const status = document.getElementById('saveStatus');
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 2000);
+            } catch (e) {
+                alert('No se pudo guardar: ' + e.message);
+            }
+        }
+
+        cargar();
+    </script>
+</body>
+</html>

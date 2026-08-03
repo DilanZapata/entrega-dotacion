@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Empleados - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-5xl mx-auto p-6 space-y-6">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800">Empleados</h1>
+                <p class="text-slate-500 text-sm">Roster usado para validar cédulas en el formulario de solicitud.</p>
+            </div>
+            <button onclick="abrirModal()" class="bg-brand-primary text-white font-bold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 shrink-0">
+                <span class="material-symbols-outlined text-base">person_add</span> Nuevo Empleado
+            </button>
+        </div>
+
+        <input id="buscador" oninput="renderTabla()" placeholder="Buscar por nombre, cédula o cargo..." class="w-full rounded-xl border-slate-200 py-2.5 px-4 shadow-sm">
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                    <tr>
+                        <th class="text-left p-3">Cédula</th>
+                        <th class="text-left p-3">Nombre</th>
+                        <th class="text-left p-3">Cargo</th>
+                        <th class="text-left p-3">Género</th>
+                        <th class="text-left p-3">Estado</th>
+                        <th class="text-right p-3">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <div id="modal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 id="modalTitulo" class="text-lg font-bold">Nuevo Empleado</h2>
+            <input type="hidden" id="fOriginalCedula">
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Cédula</label>
+                <input id="fCedula" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Nombre completo</label>
+                <input id="fNombre" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Cargo</label>
+                    <input id="fCargo" list="cargosList" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                    <datalist id="cargosList"></datalist>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Género</label>
+                    <select id="fGenero" class="w-full rounded-xl border-slate-200 py-2.5 px-3 bg-white">
+                        <option value="HOMBRE">HOMBRE</option>
+                        <option value="MUJER">MUJER</option>
+                    </select>
+                </div>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" id="fActivo" checked class="rounded"> Empleado activo
+            </label>
+            <div class="flex gap-3 pt-2">
+                <button onclick="cerrarModal()" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="guardarEmpleado()" class="flex-1 bg-brand-primary text-white font-bold py-2.5 rounded-xl">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('empleados');
+        let empleados = [];
+        let cargosConocidos = [];
+
+        async function cargar() {
+            empleados = await apiGet('../api/empleados.php');
+            const config = await apiGet('../api/config.php');
+            cargosConocidos = config.relacion_camisas.map(c => c.cargo);
+            document.getElementById('cargosList').innerHTML = cargosConocidos.map(c => `<option value="${c}">`).join('');
+            renderTabla();
+        }
+
+        function renderTabla() {
+            const q = document.getElementById('buscador').value.toLowerCase();
+            const filtrados = empleados.filter(e =>
+                e.nombre.toLowerCase().includes(q) || e.cedula.includes(q) || e.cargo.toLowerCase().includes(q));
+
+            document.getElementById('tbody').innerHTML = filtrados.map(e => `
+                <tr class="border-t border-slate-100">
+                    <td class="p-3 font-mono">${e.cedula}</td>
+                    <td class="p-3 font-medium">${e.nombre}</td>
+                    <td class="p-3">${e.cargo}</td>
+                    <td class="p-3">${e.genero}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${e.activo ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">
+                            ${e.activo ? 'activo' : 'inactivo'}
+                        </span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick='editarEmpleado(${JSON.stringify(e.cedula)})' class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><span class="material-symbols-outlined text-base">edit</span></button>
+                        <button onclick='eliminarEmpleado(${JSON.stringify(e.cedula)}, ${JSON.stringify(e.nombre)})' class="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><span class="material-symbols-outlined text-base">delete</span></button>
+                    </td>
+                </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Sin resultados.</td></tr>';
+        }
+
+        function abrirModal() {
+            document.getElementById('modalTitulo').innerText = 'Nuevo Empleado';
+            document.getElementById('fOriginalCedula').value = '';
+            document.getElementById('fCedula').value = '';
+            document.getElementById('fCedula').disabled = false;
+            document.getElementById('fNombre').value = '';
+            document.getElementById('fCargo').value = '';
+            document.getElementById('fGenero').value = 'HOMBRE';
+            document.getElementById('fActivo').checked = true;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function editarEmpleado(cedula) {
+            const e = empleados.find(x => x.cedula === cedula);
+            if (!e) return;
+            document.getElementById('modalTitulo').innerText = 'Editar Empleado';
+            document.getElementById('fOriginalCedula').value = e.cedula;
+            document.getElementById('fCedula').value = e.cedula;
+            document.getElementById('fCedula').disabled = true;
+            document.getElementById('fNombre').value = e.nombre;
+            document.getElementById('fCargo').value = e.cargo;
+            document.getElementById('fGenero').value = e.genero;
+            document.getElementById('fActivo').checked = !!e.activo;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function cerrarModal() { document.getElementById('modal').classList.add('hidden'); }
+
+        async function guardarEmpleado() {
+            const original = document.getElementById('fOriginalCedula').value;
+            const payload = {
+                cedula: document.getElementById('fCedula').value.trim(),
+                nombre: document.getElementById('fNombre').value.trim(),
+                cargo: document.getElementById('fCargo').value.trim(),
+                genero: document.getElementById('fGenero').value,
+                activo: document.getElementById('fActivo').checked,
+            };
+            if (!payload.cedula || !payload.nombre || !payload.cargo) return alert('Cédula, nombre y cargo son obligatorios.');
+
+            try {
+                if (original) {
+                    await apiSend('../api/empleados.php', 'PUT', payload);
+                } else {
+                    await apiSend('../api/empleados.php', 'POST', payload);
+                }
+                cerrarModal();
+                cargar();
+            } catch (e) {
+                alert('No se pudo guardar: ' + e.message);
+            }
+        }
+
+        async function eliminarEmpleado(cedula, nombre) {
+            if (!confirm(`¿Eliminar a "${nombre}" del sistema?`)) return;
+            try {
+                await apiSend('../api/empleados.php', 'DELETE', { cedula });
+                cargar();
+            } catch (e) {
+                alert('No se pudo eliminar: ' + e.message);
+            }
+        }
+
+        cargar();
+    </script>
+</body>
+</html>

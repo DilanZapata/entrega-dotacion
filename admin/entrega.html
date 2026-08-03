@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Registrar Entrega - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        input[type="checkbox"] { accent-color: #f15a24; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-3xl mx-auto p-6 space-y-6 pb-28">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">Registrar Entrega de Dotación</h1>
+            <p class="text-slate-500 text-sm">Selecciona el empleado, confirma o ajusta los items entregados y genera el acta en PDF.</p>
+        </div>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Periodo</label>
+                <select id="selectPeriodo" class="w-full rounded-xl border-slate-200 py-2.5 px-3 bg-white"></select>
+            </div>
+
+            <div class="space-y-1 relative">
+                <label class="text-sm font-medium text-slate-700">Buscar empleado (cédula o nombre)</label>
+                <input id="buscarEmpleado" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Escribe para buscar...">
+                <div id="resultados" class="hidden absolute z-20 bg-white border border-slate-200 rounded-xl shadow-lg mt-1 w-full max-h-64 overflow-y-auto"></div>
+            </div>
+
+            <div id="empleadoInfo" class="hidden bg-orange-50 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div>
+                    <p id="infoNombre" class="font-bold text-slate-800"></p>
+                    <p id="infoDetalle" class="text-xs text-slate-500"></p>
+                </div>
+                <button onclick="limpiarSeleccion()" class="text-slate-400 hover:text-slate-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <p id="avisoEntregaPrevia" class="hidden text-xs bg-amber-50 text-amber-700 rounded-xl p-3"></p>
+        </section>
+
+        <section id="seccionItems" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="font-bold text-slate-800">Items a Entregar</h2>
+                <button onclick="agregarFila()" class="text-brand-primary text-sm font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">add</span> Agregar item
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="text-left p-2 w-8"></th>
+                            <th class="text-left p-2">Descripción</th>
+                            <th class="text-left p-2 w-24">Talla</th>
+                            <th class="text-left p-2 w-20">Cant.</th>
+                            <th class="p-2 w-8"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="filasItems"></tbody>
+                </table>
+            </div>
+            <datalist id="sugerenciasDescripcion"></datalist>
+        </section>
+    </main>
+
+    <div id="footerAccion" class="hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 p-4">
+        <div class="max-w-3xl mx-auto">
+            <button onclick="generarEntrega()" class="w-full bg-brand-primary text-white font-bold py-3.5 rounded-xl shadow-lg flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">picture_as_pdf</span>
+                Guardar Entrega y Generar Acta PDF
+            </button>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/logo.js"></script>
+    <script src="../js/pdf-acta.js"></script>
+    <script>
+        renderAdminNav('entrega');
+
+        let periodos = [];
+        let empleados = [];
+        let config = null;
+        let seleccionado = null;
+        let entregaPrevia = null;
+
+        async function init() {
+            [periodos, empleados, config] = await Promise.all([
+                apiGet('../api/periodos.php'),
+                apiGet('../api/empleados.php'),
+                apiGet('../api/config.php'),
+            ]);
+
+            const activoIdx = periodos.findIndex(p => p.estado === 'activo');
+            document.getElementById('selectPeriodo').innerHTML = periodos.map(p =>
+                `<option value="${p.id}">${p.nombre}${p.estado === 'activo' ? ' (activo)' : ''}</option>`).join('');
+            if (activoIdx >= 0) document.getElementById('selectPeriodo').value = periodos[activoIdx].id;
+
+            document.getElementById('selectPeriodo').addEventListener('change', () => {
+                if (seleccionado) cargarContextoEmpleado();
+            });
+
+            const sugerencias = new Set();
+            config.tallas_pantalon.forEach(() => {});
+            config.relacion_camisas.forEach(c => c.tipos.forEach(t => sugerencias.add(t)));
+            config.tipos_calzado.forEach(t => sugerencias.add(t));
+            document.getElementById('sugerenciasDescripcion').innerHTML =
+                [...sugerencias].map(s => `<option value="${s}">`).join('');
+        }
+
+        document.getElementById('buscarEmpleado').addEventListener('input', (e) => {
+            const q = e.target.value.trim().toLowerCase();
+            const cont = document.getElementById('resultados');
+            if (q.length < 2) { cont.classList.add('hidden'); return; }
+
+            const matches = empleados.filter(emp =>
+                emp.nombre.toLowerCase().includes(q) || emp.cedula.includes(q)).slice(0, 15);
+
+            if (!matches.length) {
+                cont.innerHTML = '<p class="p-3 text-sm text-slate-400">Sin resultados.</p>';
+            } else {
+                cont.innerHTML = matches.map(emp => `
+                    <button onclick='seleccionarEmpleado(${JSON.stringify(emp.cedula)})' class="w-full text-left p-3 hover:bg-orange-50 border-b border-slate-50 last:border-0">
+                        <p class="font-bold text-sm">${emp.nombre}</p>
+                        <p class="text-xs text-slate-400">C.C. ${emp.cedula} · ${emp.cargo}</p>
+                    </button>`).join('');
+            }
+            cont.classList.remove('hidden');
+        });
+
+        function limpiarSeleccion() {
+            seleccionado = null;
+            entregaPrevia = null;
+            document.getElementById('empleadoInfo').classList.add('hidden');
+            document.getElementById('avisoEntregaPrevia').classList.add('hidden');
+            document.getElementById('seccionItems').classList.add('hidden');
+            document.getElementById('footerAccion').classList.add('hidden');
+            document.getElementById('buscarEmpleado').value = '';
+        }
+
+        async function seleccionarEmpleado(cedula) {
+            seleccionado = empleados.find(e => e.cedula === cedula);
+            document.getElementById('resultados').classList.add('hidden');
+            document.getElementById('buscarEmpleado').value = '';
+            document.getElementById('infoNombre').innerText = seleccionado.nombre;
+            document.getElementById('infoDetalle').innerText = `C.C. ${seleccionado.cedula} · ${seleccionado.cargo} · ${seleccionado.genero}`;
+            document.getElementById('empleadoInfo').classList.remove('hidden');
+            document.getElementById('seccionItems').classList.remove('hidden');
+            document.getElementById('footerAccion').classList.remove('hidden');
+            await cargarContextoEmpleado();
+        }
+
+        async function cargarContextoEmpleado() {
+            const periodoId = document.getElementById('selectPeriodo').value;
+            const aviso = document.getElementById('avisoEntregaPrevia');
+
+            const [solicitud, entregasPeriodo] = await Promise.all([
+                apiGet(`../api/solicitudes.php?cedula=${encodeURIComponent(seleccionado.cedula)}&periodo_id=${encodeURIComponent(periodoId)}`),
+                apiGet(`../api/entregas.php?periodo_id=${encodeURIComponent(periodoId)}`),
+            ]);
+
+            entregaPrevia = entregasPeriodo.find(e => e.cedula === seleccionado.cedula) || null;
+
+            if (entregaPrevia) {
+                aviso.innerText = `Ya se registró una entrega para este empleado en este periodo (${entregaPrevia.fecha_entrega}). Puedes corregirla y volver a generar el acta.`;
+                aviso.classList.remove('hidden');
+                cargarFilas(entregaPrevia.items_entregados);
+            } else if (solicitud) {
+                aviso.classList.add('hidden');
+                cargarFilas(solicitud.items.map(i => ({ descripcion: i.descripcion, talla: i.talla, cantidad: i.cantidad })));
+            } else {
+                aviso.innerText = 'Este empleado no tiene una solicitud registrada para este periodo. Agrega los items manualmente.';
+                aviso.classList.remove('hidden');
+                cargarFilas([]);
+            }
+        }
+
+        function filaHTML(item = { descripcion: '', talla: '', cantidad: 1 }) {
+            return `
+                <tr class="border-t border-slate-100">
+                    <td class="p-2"><input type="checkbox" checked class="chk-incluir"></td>
+                    <td class="p-2"><input list="sugerenciasDescripcion" value="${item.descripcion || ''}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 desc"></td>
+                    <td class="p-2"><input value="${item.talla || ''}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 talla"></td>
+                    <td class="p-2"><input type="number" min="1" value="${item.cantidad || 1}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 cant"></td>
+                    <td class="p-2"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600"><span class="material-symbols-outlined text-base">delete</span></button></td>
+                </tr>`;
+        }
+
+        function cargarFilas(items) {
+            document.getElementById('filasItems').innerHTML = items.map(filaHTML).join('') || filaHTML();
+        }
+
+        function agregarFila() {
+            document.getElementById('filasItems').insertAdjacentHTML('beforeend', filaHTML({ descripcion: '', talla: '', cantidad: 1 }));
+        }
+
+        async function generarEntrega() {
+            if (!seleccionado) return alert('Selecciona un empleado.');
+
+            const filas = [...document.querySelectorAll('#filasItems tr')];
+            const items = filas
+                .filter(f => f.querySelector('.chk-incluir').checked)
+                .map(f => ({
+                    descripcion: f.querySelector('.desc').value.trim(),
+                    talla: f.querySelector('.talla').value.trim(),
+                    cantidad: parseInt(f.querySelector('.cant').value, 10) || 0,
+                }))
+                .filter(it => it.descripcion && it.cantidad > 0);
+
+            if (!items.length) return alert('Agrega al menos un item válido para entregar.');
+
+            const periodoId = document.getElementById('selectPeriodo').value;
+            const periodo = periodos.find(p => p.id === periodoId);
+
+            const payload = {
+                periodo_id: periodoId,
+                cedula: seleccionado.cedula,
+                nombre: seleccionado.nombre,
+                cargo: seleccionado.cargo,
+                items_entregados: items,
+            };
+
+            try {
+                await apiSend('../api/entregas.php', 'POST', payload);
+                descargarActaPDF({
+                    nombre: seleccionado.nombre,
+                    cedula: seleccionado.cedula,
+                    cargo: seleccionado.cargo,
+                    items,
+                });
+                alert('Entrega guardada y acta generada correctamente.');
+                limpiarSeleccion();
+            } catch (e) {
+                alert('No se pudo registrar la entrega: ' + e.message);
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#buscarEmpleado') && !e.target.closest('#resultados')) {
+                document.getElementById('resultados').classList.add('hidden');
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

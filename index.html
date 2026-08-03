@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Solicitud de Dotación - Agropecuaria Chiquique</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { brand: { light: '#fff7ed', primary: '#f15a24', accent: '#ea580c' } } } }
+        }
+    </script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; font-family: 'Public Sans', sans-serif; }
+        .custom-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .shoe-type-radio:checked + label { border-color: #f15a24; background-color: #fff7ed; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-900">
+    <header class="bg-white px-6 pt-10 pb-6 border-b border-slate-200 sticky top-0 z-10">
+        <div class="flex items-center space-x-3">
+            <img src="assets/logo.png" alt="Agropecuaria Chiquique" class="h-10 w-auto"/>
+            <div>
+                <h1 class="text-xl font-bold text-slate-800">Solicitud de Dotación</h1>
+                <p class="text-sm text-slate-500" id="pActive">Cargando periodo...</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow p-6 space-y-8 max-w-md mx-auto w-full">
+
+        <div id="sinPeriodo" class="hidden bg-white rounded-2xl p-8 text-center custom-shadow space-y-2">
+            <span class="material-symbols-outlined text-4xl text-slate-300">event_busy</span>
+            <p class="font-bold text-slate-700">No hay un periodo activo</p>
+            <p class="text-sm text-slate-500">En este momento no se están recibiendo solicitudes de dotación. Consulta con administración.</p>
+        </div>
+
+        <form id="formSolicitud" class="hidden space-y-8">
+            <section class="space-y-4">
+                <div class="flex items-center space-x-2 text-slate-600 mb-2">
+                    <span class="material-symbols-outlined text-sm">person</span>
+                    <h2 class="font-semibold uppercase tracking-wider text-xs">Información Personal</h2>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-slate-700">Número de Cédula</label>
+                    <input id="id-number" type="text" inputmode="numeric" class="w-full rounded-xl border-slate-200 py-3 custom-shadow px-4 focus:ring-brand-primary focus:border-brand-primary" placeholder="Ej: 1023456789">
+                    <div id="user-info" class="hidden p-3 bg-orange-50 text-[#f15a24] rounded-xl font-bold text-xs mt-2 transition-all"></div>
+                    <p id="error-msg" class="hidden text-xs text-red-500 mt-1.5 flex items-center px-1">
+                        <span class="material-symbols-outlined text-sm mr-1">error</span> La cédula no existe en el sistema. Contacta a administración.
+                    </p>
+                </div>
+            </section>
+
+            <section id="camposDotacion" class="space-y-8 hidden">
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2 text-slate-600 mb-2">
+                        <span class="material-symbols-outlined text-sm">checkroom</span>
+                        <h2 class="font-semibold uppercase tracking-wider text-xs">Vestimenta</h2>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-slate-700">Talla Pantalón</label>
+                            <select id="pants-size" class="w-full rounded-xl border-slate-200 bg-white py-3 custom-shadow">
+                                <option value="">Seleccionar</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-slate-700">Talla Camisa / Overol</label>
+                            <select id="shirt-size" class="w-full rounded-xl border-slate-200 bg-white py-3 custom-shadow">
+                                <option value="">Seleccionar</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-700">Tipo de Camisa</label>
+                        <select id="shirt-type" class="w-full rounded-xl border-slate-200 bg-white py-3 custom-shadow">
+                            <option value="">Seleccione cédula primero</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2 text-slate-600 mb-2">
+                        <span class="material-symbols-outlined text-sm">hiking</span>
+                        <h2 class="font-semibold uppercase tracking-wider text-xs">Calzado</h2>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-700">Talla (EUR/COL)</label>
+                        <input id="shoe-size" type="number" class="w-full rounded-xl border-slate-200 py-3 custom-shadow" placeholder="Ej: 40">
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 pt-2" id="shoe-options"></div>
+                </div>
+            </section>
+        </form>
+    </main>
+
+    <footer id="footerBtn" class="hidden p-6 bg-white border-t border-slate-200 sticky bottom-0">
+        <button id="btnSave" class="w-full bg-brand-primary hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-200 transition-all active:scale-95">
+            Guardar Tallas
+        </button>
+    </footer>
+
+    <script src="js/app.js"></script>
+    <script>
+        let seleccionado = null;
+        let config = null;
+        let periodoActivo = null;
+
+        async function init() {
+            try {
+                periodoActivo = await apiGet('api/periodos.php?activo=1');
+            } catch (e) { periodoActivo = null; }
+
+            if (!periodoActivo) {
+                document.getElementById('sinPeriodo').classList.remove('hidden');
+                document.getElementById('pActive').innerText = 'Sin periodo activo';
+                return;
+            }
+            document.getElementById('pActive').innerText = `Periodo: ${periodoActivo.nombre}`;
+            document.getElementById('formSolicitud').classList.remove('hidden');
+            document.getElementById('footerBtn').classList.remove('hidden');
+
+            config = await apiGet('api/config.php');
+            document.getElementById('pants-size').innerHTML =
+                '<option value="">Seleccionar</option>' +
+                config.tallas_pantalon.map(t => `<option value="${t}">${t}</option>`).join('');
+            document.getElementById('shirt-size').innerHTML =
+                '<option value="">Seleccionar</option>' +
+                config.tallas_camisa.map(t => `<option value="${t}">${t}</option>`).join('');
+
+            const shoeIcons = { 'Guayos': 'sports_soccer', 'Zapatos Puntera': 'shield', 'Bota Pantanera': 'water_drop' };
+            document.getElementById('shoe-options').innerHTML = config.tipos_calzado.map((tipo, i) => `
+                <input class="hidden shoe-type-radio" id="type_${i}" name="shoe_type" type="radio" value="${tipo}"/>
+                <label class="flex items-center p-4 bg-white border border-slate-200 rounded-2xl cursor-pointer custom-shadow" for="type_${i}">
+                    <div class="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mr-4">
+                        <span class="material-symbols-outlined">${shoeIcons[tipo] || 'checkroom'}</span>
+                    </div>
+                    <div class="flex-grow"><p class="font-bold text-slate-800 text-sm">${tipo}</p></div>
+                </label>`).join('');
+        }
+
+        let debounceTimer = null;
+        document.getElementById('id-number').oninput = (e) => {
+            clearTimeout(debounceTimer);
+            const val = e.target.value.trim();
+            if (val.length < 4) {
+                document.getElementById('camposDotacion').classList.add('hidden');
+                return;
+            }
+            debounceTimer = setTimeout(() => buscarEmpleado(val), 300);
+        };
+
+        async function buscarEmpleado(cedula) {
+            seleccionado = await apiGet(`api/empleados.php?cedula=${encodeURIComponent(cedula)}`);
+
+            const info = document.getElementById('user-info');
+            const error = document.getElementById('error-msg');
+            const shirtSelect = document.getElementById('shirt-type');
+            const campos = document.getElementById('camposDotacion');
+
+            if (seleccionado) {
+                info.innerText = `EMPLEADO: ${seleccionado.nombre} | CARGO: ${seleccionado.cargo}`;
+                info.classList.remove('hidden');
+                error.classList.add('hidden');
+                campos.classList.remove('hidden');
+                actualizarFiltroCamisas(seleccionado.cargo);
+            } else {
+                info.classList.add('hidden');
+                error.classList.remove('hidden');
+                campos.classList.add('hidden');
+                shirtSelect.innerHTML = '<option value="">Seleccione cédula primero</option>';
+            }
+        }
+
+        function actualizarFiltroCamisas(cargo) {
+            const shirtSelect = document.getElementById('shirt-type');
+            const cfg = config.relacion_camisas.find(c => c.cargo === cargo);
+
+            if (cfg && cfg.tipos.length) {
+                shirtSelect.innerHTML = cfg.tipos.length > 1 ? '<option value="">Seleccionar tipo</option>' : '';
+                cfg.tipos.forEach(tipo => {
+                    shirtSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+                });
+                if (cfg.tipos.length === 1) shirtSelect.value = cfg.tipos[0];
+            } else {
+                shirtSelect.innerHTML = '<option value="">Sin tipos configurados para este cargo</option>';
+            }
+        }
+
+        document.getElementById('btnSave').onclick = async () => {
+            if (!seleccionado) return alert('Ingresa una cédula válida registrada en el sistema.');
+
+            const camisa = document.getElementById('shirt-size').value;
+            const tipoCamisa = document.getElementById('shirt-type').value;
+            const pantalon = document.getElementById('pants-size').value;
+            const calzado = document.getElementById('shoe-size').value;
+            const tipoCalzado = document.querySelector('input[name="shoe_type"]:checked')?.value;
+
+            if (!camisa || !tipoCamisa || !pantalon || !calzado || !tipoCalzado) {
+                return alert('Por favor completa todos los campos.');
+            }
+
+            const items = [
+                { categoria: 'Camisa', descripcion: tipoCamisa, talla: camisa, cantidad: 2 },
+                { categoria: 'Pantalon', descripcion: etiquetaGenero(seleccionado.genero, 'Pantalón'), talla: pantalon, cantidad: 2 },
+                { categoria: 'Calzado', descripcion: tipoCalzado, talla: calzado, cantidad: 1 },
+            ];
+
+            const payload = {
+                periodo_id: periodoActivo.id,
+                cedula: seleccionado.cedula,
+                nombre: seleccionado.nombre,
+                cargo: seleccionado.cargo,
+                genero: seleccionado.genero,
+                items,
+            };
+
+            try {
+                await apiSend('api/solicitudes.php', 'POST', payload);
+                localStorage.setItem('ultima_solicitud', JSON.stringify({ ...payload, periodo_nombre: periodoActivo.nombre }));
+                window.location.href = 'resumen.html';
+            } catch (e) {
+                alert('No se pudo guardar la solicitud: ' + e.message);
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>
