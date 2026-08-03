@@ -1,0 +1,11 @@
+services:
+  entrega-dotacion:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      # Persiste periodos/empleados/solicitudes/entregas entre despliegues.
+      - dotacion_data:/var/www/html/data
+
+volumes:
+  dotacion_data:
