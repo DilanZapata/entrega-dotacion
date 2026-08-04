@@ -1,0 +1,22 @@
+[
+    {
+        "id": "144ea7ad-4aa6-4748-b17e-e4907b3e4165",
+        "cedula": "1112038485",
+        "nombre": "DILAN ADRIAN ZAPATA ORTIZ",
+        "cargo": "OFICINA",
+        "estado": "abierto",
+        "fecha_generado": "2026-08-04 10:00:32",
+        "fecha_cierre": null,
+        "archivo_escaneado": null
+    },
+    {
+        "id": "e0746a3c-8dc8-410c-87d6-84d2a90a812b",
+        "cedula": "1112149459",
+        "nombre": "DANIELA GARCIA ARCE",
+        "cargo": "BALDEESTACA",
+        "estado": "abierto",
+        "fecha_generado": "2026-08-04 10:15:19",
+        "fecha_cierre": null,
+        "archivo_escaneado": null
+    }
+]

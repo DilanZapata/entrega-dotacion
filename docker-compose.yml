@@ -6,6 +6,9 @@ services:
     volumes:
       # Persiste periodos/empleados/solicitudes/entregas entre despliegues.
       - dotacion_data:/var/www/html/data
+      # Persiste los documentos EPP escaneados entre despliegues.
+      - dotacion_uploads:/var/www/html/uploads
 
 volumes:
   dotacion_data:
+  dotacion_uploads:

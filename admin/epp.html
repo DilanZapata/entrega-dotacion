@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Entrega de EPP - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-3xl mx-auto p-6 space-y-6 pb-16">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">Entrega de Elementos de Protección Personal (EPP)</h1>
+            <p class="text-slate-500 text-sm">Genera el formato en blanco para imprimir y diligenciar a mano. Cada formato es un periodo: para generar uno nuevo primero debes cerrar el actual subiendo el documento escaneado.</p>
+        </div>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="space-y-1 relative">
+                <label class="text-sm font-medium text-slate-700">Buscar empleado (cédula o nombre)</label>
+                <input id="buscarEmpleado" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Escribe para buscar...">
+                <div id="resultados" class="hidden absolute z-20 bg-white border border-slate-200 rounded-xl shadow-lg mt-1 w-full max-h-64 overflow-y-auto"></div>
+            </div>
+
+            <div id="empleadoInfo" class="hidden bg-orange-50 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div>
+                    <p id="infoNombre" class="font-bold text-slate-800"></p>
+                    <p id="infoDetalle" class="text-xs text-slate-500"></p>
+                </div>
+                <button onclick="limpiarSeleccion()" class="text-slate-400 hover:text-slate-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </section>
+
+        <section id="seccionEstado" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4"></section>
+
+        <section id="seccionHistorial" class="hidden space-y-3">
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Historial de formatos EPP</h2>
+            <div id="listaHistorial" class="space-y-2"></div>
+        </section>
+    </main>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/logo.js"></script>
+    <script src="../js/pdf-epp.js"></script>
+    <script>
+        renderAdminNav('epp');
+
+        let empleados = [];
+        let seleccionado = null;
+
+        async function init() {
+            empleados = await apiGet('../api/empleados.php');
+        }
+
+        document.getElementById('buscarEmpleado').addEventListener('input', (e) => {
+            const q = e.target.value.trim().toLowerCase();
+            const cont = document.getElementById('resultados');
+            if (q.length < 2) { cont.classList.add('hidden'); return; }
+
+            const matches = empleados.filter(emp =>
+                emp.nombre.toLowerCase().includes(q) || emp.cedula.includes(q)).slice(0, 15);
+
+            cont.innerHTML = matches.length
+                ? matches.map(emp => `
+                    <button onclick='seleccionarEmpleado(${JSON.stringify(emp.cedula)})' class="w-full text-left p-3 hover:bg-orange-50 border-b border-slate-50 last:border-0">
+                        <p class="font-bold text-sm">${emp.nombre}</p>
+                        <p class="text-xs text-slate-400">C.C. ${emp.cedula} · ${emp.cargo}</p>
+                    </button>`).join('')
+                : '<p class="p-3 text-sm text-slate-400">Sin resultados.</p>';
+            cont.classList.remove('hidden');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#buscarEmpleado') && !e.target.closest('#resultados')) {
+                document.getElementById('resultados').classList.add('hidden');
+            }
+        });
+
+        function limpiarSeleccion() {
+            seleccionado = null;
+            document.getElementById('empleadoInfo').classList.add('hidden');
+            document.getElementById('seccionEstado').classList.add('hidden');
+            document.getElementById('seccionHistorial').classList.add('hidden');
+            document.getElementById('buscarEmpleado').value = '';
+        }
+
+        async function seleccionarEmpleado(cedula) {
+            seleccionado = empleados.find(e => e.cedula === cedula);
+            document.getElementById('resultados').classList.add('hidden');
+            document.getElementById('buscarEmpleado').value = '';
+            document.getElementById('infoNombre').innerText = seleccionado.nombre;
+            document.getElementById('infoDetalle').innerText = `C.C. ${seleccionado.cedula} · ${seleccionado.cargo}`;
+            document.getElementById('empleadoInfo').classList.remove('hidden');
+            await cargarEstado();
+        }
+
+        async function cargarEstado() {
+            const data = await apiGet(`../api/epp.php?cedula=${encodeURIComponent(seleccionado.cedula)}&historial=1`);
+            const historial = data; // GET con historial=1 devuelve el arreglo directo
+            const abierto = historial.find(r => r.estado === 'abierto') || null;
+
+            const seccionEstado = document.getElementById('seccionEstado');
+            seccionEstado.classList.remove('hidden');
+
+            if (abierto) {
+                seccionEstado.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-700">Abierto</span>
+                            <p class="font-bold text-slate-800 mt-1">Formato EPP generado el ${abierto.fecha_generado}</p>
+                            <p class="text-xs text-slate-500">Debes cerrar este formato (subir el escaneado) antes de poder generar uno nuevo.</p>
+                        </div>
+                        <button onclick='redescargar(${JSON.stringify(abierto)})' class="shrink-0 flex items-center gap-1 bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl">
+                            <span class="material-symbols-outlined text-base">picture_as_pdf</span> Volver a descargar
+                        </button>
+                    </div>
+                    <div class="border-t border-slate-100 pt-4 space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Cerrar formato: sube el documento escaneado/foto (JPG, PNG o PDF)</label>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input id="archivoEscaneado" type="file" accept=".jpg,.jpeg,.png,.pdf" class="flex-1 text-sm rounded-xl border border-slate-200 py-2 px-3">
+                            <button onclick='cerrarFormato(${JSON.stringify(abierto.id)})' class="bg-brand-primary text-white font-bold px-4 py-2.5 rounded-xl shrink-0">Cerrar y subir</button>
+                        </div>
+                    </div>`;
+            } else {
+                seccionEstado.innerHTML = `
+                    <div class="text-center py-4 space-y-3">
+                        <span class="material-symbols-outlined text-4xl text-slate-300">shield</span>
+                        <p class="text-sm text-slate-500">Este empleado no tiene un formato EPP abierto actualmente.</p>
+                        <button onclick='generarNuevo()' class="bg-brand-primary text-white font-bold px-5 py-3 rounded-xl shadow-lg inline-flex items-center gap-2">
+                            <span class="material-symbols-outlined">add</span> Generar nuevo formato EPP
+                        </button>
+                    </div>`;
+            }
+
+            const listaHistorial = document.getElementById('listaHistorial');
+            const seccionHistorial = document.getElementById('seccionHistorial');
+            if (historial.length) {
+                seccionHistorial.classList.remove('hidden');
+                listaHistorial.innerHTML = historial.map(r => `
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-3">
+                        <div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${r.estado === 'abierto' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}">${r.estado}</span>
+                            <p class="text-sm font-bold text-slate-800 mt-1">Generado: ${r.fecha_generado}</p>
+                            ${r.fecha_cierre ? `<p class="text-xs text-slate-400">Cerrado: ${r.fecha_cierre}</p>` : ''}
+                        </div>
+                        ${r.archivo_escaneado ? `<a href="../api/epp_download.php?id=${r.id}" target="_blank" class="shrink-0 flex items-center gap-1 bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl"><span class="material-symbols-outlined text-base">visibility</span> Ver escaneado</a>` : ''}
+                    </div>`).join('');
+            } else {
+                seccionHistorial.classList.add('hidden');
+            }
+        }
+
+        function redescargar(registro) {
+            descargarFormatoEPP({ nombre: registro.nombre, cedula: registro.cedula, cargo: registro.cargo });
+        }
+
+        async function generarNuevo() {
+            try {
+                const res = await apiSend('../api/epp.php', 'POST', {
+                    cedula: seleccionado.cedula,
+                    nombre: seleccionado.nombre,
+                    cargo: seleccionado.cargo,
+                });
+                descargarFormatoEPP(seleccionado);
+                await cargarEstado();
+            } catch (e) {
+                alert('No se pudo generar: ' + e.message);
+            }
+        }
+
+        async function cerrarFormato(id) {
+            const input = document.getElementById('archivoEscaneado');
+            if (!input.files.length) return alert('Selecciona el archivo escaneado primero.');
+
+            const formData = new FormData();
+            formData.append('action', 'cerrar');
+            formData.append('id', id);
+            formData.append('archivo', input.files[0]);
+
+            try {
+                const res = await fetch('../api/epp.php', { method: 'POST', credentials: 'same-origin', body: formData });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || `Error ${res.status}`);
+                alert('Formato cerrado correctamente.');
+                await cargarEstado();
+            } catch (e) {
+                alert('No se pudo cerrar el formato: ' + e.message);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

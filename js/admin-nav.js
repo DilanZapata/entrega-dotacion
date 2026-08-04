@@ -5,6 +5,7 @@ function renderAdminNav(active) {
     { key: 'periodos', href: 'periodos.html', label: 'Periodos', icon: 'event' },
     { key: 'entrega', href: 'entrega.html', label: 'Entregar', icon: 'assignment_turned_in' },
     { key: 'entregas', href: 'entregas.html', label: 'Historial', icon: 'history' },
+    { key: 'epp', href: 'epp.html', label: 'EPP', icon: 'shield' },
     { key: 'informe', href: 'informe.html', label: 'Informes', icon: 'summarize' },
     { key: 'empleados', href: 'empleados.html', label: 'Empleados', icon: 'groups' },
     { key: 'catalogo', href: 'catalogo.html', label: 'Catálogo', icon: 'checkroom' },
