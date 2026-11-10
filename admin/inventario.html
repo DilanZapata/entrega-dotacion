@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Inventario de Prendas - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        input[type="checkbox"], input[type="radio"] { accent-color: #f15a24; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-5xl mx-auto p-6 space-y-8">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800">Inventario de Prendas</h1>
+                <p class="text-slate-500 text-sm">Sube lo que llegó del proveedor, repártelo entre los trabajadores y lleva las existencias. Cada entrega registrada descuenta del inventario.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="descargarPlantilla()" class="bg-white border border-slate-200 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-sm flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">download</span> Plantilla
+                </button>
+                <button onclick="document.getElementById('archivo').click()" class="bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm flex items-center gap-1 shadow">
+                    <span class="material-symbols-outlined text-base">upload_file</span> Subir Excel / CSV
+                </button>
+                <button onclick="abrirItem()" class="bg-brand-primary text-white font-bold px-3 py-2.5 rounded-xl text-sm flex items-center gap-1 shadow">
+                    <span class="material-symbols-outlined text-base">add</span> Agregar prenda
+                </button>
+                <input id="archivo" type="file" accept=".xlsx,.xls,.csv" class="hidden">
+            </div>
+        </div>
+
+        <!-- Existencias -->
+        <section class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Existencias</h2>
+                <p id="totalUnidades" class="text-xs font-bold text-slate-400"></p>
+            </div>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                        <tr>
+                            <th class="text-left p-3">Prenda</th>
+                            <th class="text-left p-3 w-28">Talla</th>
+                            <th class="text-right p-3 w-28">Cantidad</th>
+                            <th class="text-right p-3 w-24">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaStock"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Reparto -->
+        <section class="space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+                <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Repartir entre trabajadores</h2>
+                <select id="selectPeriodo" class="rounded-xl border-slate-200 py-2 px-3 bg-white text-sm"></select>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-5">
+                <p class="text-xs text-slate-500">Indica cuántas unidades de cada prenda le corresponden a cada persona. La talla se elige al momento de registrar la entrega.</p>
+
+                <div>
+                    <p class="text-sm font-bold text-slate-800 mb-2">1. Unidades por persona</p>
+                    <div id="prendasReparto" class="grid sm:grid-cols-2 gap-2"></div>
+                </div>
+
+                <div>
+                    <p class="text-sm font-bold text-slate-800 mb-2">2. Trabajadores</p>
+                    <div class="flex flex-wrap gap-4 text-sm">
+                        <label class="flex items-center gap-2"><input type="radio" name="modoTrab" value="todos" checked onchange="cambiarModo()"> <span id="lblTodos">Todos los activos</span></label>
+                        <label class="flex items-center gap-2"><input type="radio" name="modoTrab" value="manual" onchange="cambiarModo()"> Seleccionar trabajadores</label>
+                    </div>
+                    <div id="selectorTrabajadores" class="hidden mt-3 space-y-2">
+                        <div class="flex gap-2">
+                            <input id="buscarTrab" oninput="renderTrabajadores()" placeholder="Buscar por nombre, cédula o cargo..." class="flex-1 rounded-xl border-slate-200 py-2 px-3 text-sm">
+                            <button onclick="marcarVisibles(true)" class="text-xs font-bold px-3 rounded-xl bg-slate-100 text-slate-600">Marcar</button>
+                            <button onclick="marcarVisibles(false)" class="text-xs font-bold px-3 rounded-xl bg-slate-100 text-slate-600">Quitar</button>
+                        </div>
+                        <div id="listaTrabajadores" class="max-h-64 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-sm font-bold text-slate-800 mb-2">3. Resultado del reparto</p>
+                    <p id="resumenTrab" class="text-xs text-slate-500 mb-2"></p>
+                    <div class="overflow-x-auto border border-slate-100 rounded-xl">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                                <tr>
+                                    <th class="text-left p-2.5">Prenda</th>
+                                    <th class="text-right p-2.5">Por persona</th>
+                                    <th class="text-right p-2.5">Se necesitan</th>
+                                    <th class="text-right p-2.5">En inventario</th>
+                                    <th class="text-left p-2.5">Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaReparto"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                    <button onclick="guardarReparto()" class="bg-brand-primary text-white font-bold px-5 py-2.5 rounded-xl shadow">Guardar reparto</button>
+                    <button onclick="exportarReparto()" class="bg-green-600 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-1"><span class="material-symbols-outlined text-base">description</span> Planilla Excel</button>
+                    <button id="btnEliminarReparto" onclick="eliminarReparto()" class="hidden text-red-500 font-bold px-3 py-2.5 rounded-xl text-sm">Eliminar reparto</button>
+                    <p id="estadoReparto" class="text-xs text-slate-400"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Movimientos -->
+        <details id="detMovimientos" class="bg-white rounded-2xl shadow-sm border border-slate-100">
+            <summary class="p-4 cursor-pointer text-sm font-bold text-slate-700">Movimientos del inventario (últimos 200)</summary>
+            <div class="overflow-x-auto border-t border-slate-100">
+                <table class="w-full text-xs">
+                    <thead class="bg-slate-50 text-slate-500 uppercase font-black">
+                        <tr><th class="text-left p-2.5">Fecha</th><th class="text-left p-2.5">Tipo</th><th class="text-left p-2.5">Prenda</th><th class="text-left p-2.5">Talla</th><th class="text-right p-2.5">Cant.</th><th class="text-left p-2.5">Referencia</th></tr>
+                    </thead>
+                    <tbody id="tablaMovimientos"></tbody>
+                </table>
+            </div>
+        </details>
+    </main>
+
+    <!-- Modal prenda -->
+    <div id="modalItem" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 id="modalItemTitulo" class="text-lg font-bold">Agregar prenda</h2>
+            <input type="hidden" id="fId">
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Descripción</label>
+                <input id="fDescripcion" list="listaDescripciones" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Ej: Camisa Polo">
+                <datalist id="listaDescripciones"></datalist>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Talla</label>
+                    <input id="fTalla" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Ej: M, 32, 40">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Cantidad en existencia</label>
+                    <input id="fCantidad" type="number" min="0" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="cerrarModal('modalItem')" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="guardarItem()" class="flex-1 bg-brand-primary text-white font-bold py-2.5 rounded-xl">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal carga de archivo -->
+    <div id="modalCarga" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <h2 class="text-lg font-bold">Revisar archivo antes de cargar</h2>
+            <p id="cargaResumen" class="text-sm text-slate-600"></p>
+            <div class="overflow-y-auto border border-slate-100 rounded-xl flex-1 min-h-0">
+                <table class="w-full text-xs">
+                    <thead class="bg-slate-50 text-slate-500 uppercase font-black sticky top-0">
+                        <tr><th class="text-left p-2">Prenda</th><th class="text-left p-2">Talla</th><th class="text-right p-2">Cantidad</th></tr>
+                    </thead>
+                    <tbody id="cargaPreview"></tbody>
+                </table>
+            </div>
+            <div class="grid sm:grid-cols-3 gap-2">
+                <button onclick="cerrarModal('modalCarga')" class="bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="confirmarCarga('sumar')" class="bg-brand-primary text-white font-bold py-2.5 rounded-xl">Sumar al inventario</button>
+                <button onclick="confirmarCarga('reemplazar')" class="bg-slate-800 text-white font-bold py-2.5 rounded-xl">Reemplazar todo</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('inventario');
+
+        let inventario = [];
+        let empleados = [];
+        let periodos = [];
+        let config = null;
+        let reparto = null;
+        let entregadosPeriodo = new Set();
+        let cargaPendiente = [];
+        const unidades = {};            // descripción normalizada -> unidades por persona
+        const seleccion = new Set();    // cédulas marcadas en modo manual
+
+        const activos = () => empleados.filter(e => e.activo);
+        const modoTrab = () => document.querySelector('input[name="modoTrab"]:checked').value;
+        const periodoId = () => document.getElementById('selectPeriodo').value;
+        function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        async function init() {
+            [inventario, empleados, periodos, config] = await Promise.all([
+                apiGet('../api/inventario.php'),
+                apiGet('../api/empleados.php'),
+                apiGet('../api/periodos.php'),
+                apiGet('../api/config.php'),
+            ]);
+
+            const sel = document.getElementById('selectPeriodo');
+            sel.innerHTML = periodos.map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}${p.estado === 'activo' ? ' (activo)' : ''}</option>`).join('');
+            const activo = periodos.find(p => p.estado === 'activo');
+            if (activo) sel.value = activo.id;
+            sel.addEventListener('change', cargarReparto);
+
+            document.getElementById('lblTodos').innerText = `Todos los activos (${activos().length})`;
+            renderStock();
+            await cargarReparto();
+        }
+
+        // ---------- Existencias ----------
+        function grupos() {
+            const mapa = new Map();
+            inventario.forEach(it => {
+                const k = normTexto(it.descripcion);
+                if (!mapa.has(k)) mapa.set(k, { clave: k, descripcion: it.descripcion, total: 0, items: [] });
+                const g = mapa.get(k);
+                g.total += Number(it.cantidad) || 0;
+                g.items.push(it);
+            });
+            return [...mapa.values()];
+        }
+
+        function renderStock() {
+            const gs = grupos();
+            const total = gs.reduce((s, g) => s + g.total, 0);
+            document.getElementById('totalUnidades').innerText = inventario.length ? `${total} unidades en ${gs.length} prendas` : '';
+
+            document.getElementById('tablaStock').innerHTML = gs.map(g => `
+                <tr class="border-t border-slate-200 bg-slate-50/60">
+                    <td class="p-3 font-bold text-slate-800" colspan="2">${esc(g.descripcion)}</td>
+                    <td class="p-3 text-right font-black text-slate-800">${g.total}</td>
+                    <td></td>
+                </tr>
+                ${g.items.map(it => `
+                <tr class="border-t border-slate-100">
+                    <td class="p-2.5 pl-6 text-slate-400 text-xs">${esc(it.descripcion)}</td>
+                    <td class="p-2.5">${esc(it.talla) || '<span class="text-slate-300">—</span>'}</td>
+                    <td class="p-2.5 text-right font-bold ${it.cantidad > 0 ? '' : 'text-red-500'}">${it.cantidad}</td>
+                    <td class="p-2.5 text-right whitespace-nowrap">
+                        <button onclick='abrirItem(${JSON.stringify(it.id)})' class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><span class="material-symbols-outlined text-base">edit</span></button>
+                        <button onclick='eliminarItem(${JSON.stringify(it.id)})' class="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><span class="material-symbols-outlined text-base">delete</span></button>
+                    </td>
+                </tr>`).join('')}
+            `).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-10">El inventario está vacío. Sube un archivo de Excel o agrega prendas manualmente.</td></tr>';
+
+            const sugeridas = new Set(gs.map(g => g.descripcion));
+            config.relacion_camisas.forEach(c => c.tipos.forEach(t => sugeridas.add(t)));
+            config.tipos_calzado.forEach(t => sugeridas.add(t));
+            ['Pantalón Caballero', 'Pantalón Dama'].forEach(t => sugeridas.add(t));
+            document.getElementById('listaDescripciones').innerHTML = [...sugeridas].map(s => `<option value="${esc(s)}">`).join('');
+        }
+
+        async function recargarInventario() {
+            inventario = await apiGet('../api/inventario.php');
+            renderStock();
+            renderPrendasReparto();
+            renderResultado();
+            if (document.getElementById('detMovimientos').open) cargarMovimientos();
+        }
+
+        function abrirItem(id) {
+            const it = inventario.find(x => x.id === id);
+            document.getElementById('modalItemTitulo').innerText = it ? 'Editar prenda' : 'Agregar prenda';
+            document.getElementById('fId').value = it ? it.id : '';
+            document.getElementById('fDescripcion').value = it ? it.descripcion : '';
+            document.getElementById('fTalla').value = it ? it.talla : '';
+            document.getElementById('fCantidad').value = it ? it.cantidad : '';
+            document.getElementById('modalItem').classList.remove('hidden');
+        }
+
+        async function guardarItem() {
+            const payload = {
+                action: 'guardar_item',
+                id: document.getElementById('fId').value,
+                descripcion: document.getElementById('fDescripcion').value.trim(),
+                talla: document.getElementById('fTalla').value.trim(),
+                cantidad: parseInt(document.getElementById('fCantidad').value, 10) || 0,
+            };
+            if (!payload.descripcion) return alert('Escribe la descripción de la prenda.');
+            try {
+                await apiSend('../api/inventario.php', 'POST', payload);
+                cerrarModal('modalItem');
+                await recargarInventario();
+            } catch (e) { alert('No se pudo guardar: ' + e.message); }
+        }
+
+        async function eliminarItem(id) {
+            const it = inventario.find(x => x.id === id);
+            if (!it || !confirm(`¿Eliminar "${it.descripcion}" talla ${it.talla || '—'} del inventario?`)) return;
+            try {
+                await apiSend('../api/inventario.php', 'DELETE', { id });
+                await recargarInventario();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+        }
+
+        // ---------- Carga de archivo ----------
+        document.getElementById('archivo').addEventListener('change', async (ev) => {
+            const file = ev.target.files[0];
+            ev.target.value = '';
+            if (!file) return;
+            try {
+                const wb = /\.csv$/i.test(file.name)
+                    ? XLSX.read(await file.text(), { type: 'string' })
+                    : XLSX.read(await file.arrayBuffer(), { type: 'array' });
+                const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+                cargaPendiente = interpretarFilas(filas);
+            } catch (e) {
+                return alert('No se pudo leer el archivo. Debe ser Excel (.xlsx) o CSV.');
+            }
+            if (!cargaPendiente.length) {
+                return alert('No se encontraron filas válidas. El archivo debe tener las columnas Descripción, Talla y Cantidad (usa la plantilla).');
+            }
+            const total = cargaPendiente.reduce((s, f) => s + f.cantidad, 0);
+            document.getElementById('cargaResumen').innerText = `${cargaPendiente.length} filas válidas, ${total} unidades en total. Elige si se suman a las existencias actuales o si reemplazan todo el inventario.`;
+            document.getElementById('cargaPreview').innerHTML = cargaPendiente.map(f => `
+                <tr class="border-t border-slate-100"><td class="p-2">${esc(f.descripcion)}</td><td class="p-2">${esc(f.talla)}</td><td class="p-2 text-right font-bold">${f.cantidad}</td></tr>`).join('');
+            document.getElementById('modalCarga').classList.remove('hidden');
+        });
+
+        // Ubica las columnas por su encabezado (Descripción/Prenda, Talla, Cantidad). Si no hay
+        // encabezado reconocible, asume ese mismo orden en las tres primeras columnas.
+        function interpretarFilas(filas) {
+            let iDesc = 0, iTalla = 1, iCant = 2, inicio = 0;
+            const idx = filas.findIndex(f => f.some(c => /descrip|prenda|producto|art[ií]culo/i.test(String(c))) && f.some(c => /cant|unidades/i.test(String(c))));
+            if (idx !== -1) {
+                const enc = filas[idx].map(c => String(c));
+                iDesc = enc.findIndex(c => /descrip|prenda|producto|art[ií]culo/i.test(c));
+                iTalla = enc.findIndex(c => /talla/i.test(c));
+                iCant = enc.findIndex(c => /cant|unidades/i.test(c));
+                inicio = idx + 1;
+            }
+            return filas.slice(inicio).map(f => ({
+                descripcion: String(f[iDesc] ?? '').trim().replace(/\s+/g, ' '),
+                talla: iTalla === -1 ? '' : String(f[iTalla] ?? '').trim(),
+                cantidad: parseInt(f[iCant], 10) || 0,
+            })).filter(f => f.descripcion && f.cantidad > 0);
+        }
+
+        async function confirmarCarga(modo) {
+            if (modo === 'reemplazar' && inventario.length && !confirm('Esto borra las existencias actuales y deja solo lo que viene en el archivo. ¿Continuar?')) return;
+            try {
+                await apiSend('../api/inventario.php', 'POST', { action: 'cargar', modo, items: cargaPendiente });
+                cerrarModal('modalCarga');
+                await recargarInventario();
+            } catch (e) { alert('No se pudo cargar: ' + e.message); }
+        }
+
+        function descargarPlantilla() {
+            const esTalla = t => !/ningun|negocia/i.test(t);
+            const filas = [['Descripción', 'Talla', 'Cantidad']];
+            const camisas = new Set();
+            config.relacion_camisas.forEach(c => c.tipos.forEach(t => camisas.add(t)));
+            camisas.forEach(tipo => config.tallas_camisa.filter(esTalla).forEach(t => filas.push([tipo, t, ''])));
+            ['Pantalón Caballero', 'Pantalón Dama'].forEach(p => config.tallas_pantalon.filter(esTalla).forEach(t => filas.push([p, t, ''])));
+            config.tipos_calzado.filter(esTalla).forEach(c => filas.push([c, '', '']));
+
+            const ws = XLSX.utils.aoa_to_sheet(filas);
+            ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 12 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+            XLSX.writeFile(wb, 'Plantilla_Inventario.xlsx');
+        }
+
+        // ---------- Reparto ----------
+        async function cargarReparto() {
+            const pid = periodoId();
+            if (!pid) { renderPrendasReparto(); renderResultado(); return; }
+            const [rep, entregas] = await Promise.all([
+                apiGet(`../api/repartos.php?periodo_id=${encodeURIComponent(pid)}`),
+                apiGet(`../api/entregas.php?periodo_id=${encodeURIComponent(pid)}`),
+            ]);
+            reparto = rep;
+            entregadosPeriodo = new Set(entregas.map(e => e.cedula));
+
+            Object.keys(unidades).forEach(k => delete unidades[k]);
+            seleccion.clear();
+            let modo = 'todos';
+            if (reparto) {
+                reparto.prendas.forEach(p => { unidades[normTexto(p.descripcion)] = p.cantidad; });
+                reparto.cedulas.forEach(c => seleccion.add(c));
+                const ids = activos().map(e => e.cedula);
+                const mismos = ids.length === reparto.cedulas.length && ids.every(c => seleccion.has(c));
+                modo = mismos ? 'todos' : 'manual';
+            }
+            document.querySelector(`input[name="modoTrab"][value="${modo}"]`).checked = true;
+            document.getElementById('btnEliminarReparto').classList.toggle('hidden', !reparto);
+            document.getElementById('estadoReparto').innerText = reparto ? `Reparto guardado el ${reparto.fecha}` : 'Aún no hay un reparto guardado para este periodo.';
+
+            cambiarModo();
+            renderPrendasReparto();
+        }
+
+        function renderPrendasReparto() {
+            const gs = grupos();
+            // Incluye también prendas de un reparto guardado que ya no estén en inventario.
+            (reparto?.prendas || []).forEach(p => {
+                if (!gs.some(g => g.clave === normTexto(p.descripcion))) gs.push({ clave: normTexto(p.descripcion), descripcion: p.descripcion, total: 0, items: [] });
+            });
+            document.getElementById('prendasReparto').innerHTML = gs.map(g => `
+                <label class="flex items-center justify-between gap-3 border border-slate-100 rounded-xl px-3 py-2">
+                    <span class="text-sm"><span class="font-medium text-slate-700">${esc(g.descripcion)}</span> <span class="text-xs text-slate-400">(hay ${g.total})</span></span>
+                    <input type="number" min="0" value="${unidades[g.clave] || 0}" data-clave="${esc(g.clave)}" oninput="cambiarUnidades(this)" class="w-20 rounded-lg border-slate-200 py-1.5 px-2 text-sm text-right">
+                </label>`).join('') || '<p class="text-xs text-slate-400">Primero carga prendas en el inventario.</p>';
+            renderResultado();
+        }
+
+        function cambiarUnidades(input) {
+            unidades[input.dataset.clave] = Math.max(0, parseInt(input.value, 10) || 0);
+            renderResultado();
+        }
+
+        function cambiarModo() {
+            document.getElementById('selectorTrabajadores').classList.toggle('hidden', modoTrab() !== 'manual');
+            renderTrabajadores();
+            renderResultado();
+        }
+
+        function trabajadoresVisibles() {
+            const q = normTexto(document.getElementById('buscarTrab').value);
+            return activos().filter(e => !q || normTexto(e.nombre).includes(q) || e.cedula.includes(q) || normTexto(e.cargo).includes(q));
+        }
+
+        function renderTrabajadores() {
+            document.getElementById('listaTrabajadores').innerHTML = trabajadoresVisibles().map(e => `
+                <label class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-orange-50 cursor-pointer">
+                    <input type="checkbox" ${seleccion.has(e.cedula) ? 'checked' : ''} onchange='alternar(${JSON.stringify(e.cedula)}, this.checked)'>
+                    <span class="flex-1"><span class="font-medium">${esc(e.nombre)}</span> <span class="text-xs text-slate-400">· ${esc(e.cedula)} · ${esc(e.cargo)}</span></span>
+                    ${entregadosPeriodo.has(e.cedula) ? '<span class="text-[10px] font-black uppercase text-green-600">entregado</span>' : ''}
+                </label>`).join('') || '<p class="p-3 text-sm text-slate-400">Sin resultados.</p>';
+        }
+
+        function alternar(cedula, marcado) {
+            if (marcado) seleccion.add(cedula); else seleccion.delete(cedula);
+            renderResultado();
+        }
+
+        function marcarVisibles(marcar) {
+            trabajadoresVisibles().forEach(e => { if (marcar) seleccion.add(e.cedula); else seleccion.delete(e.cedula); });
+            renderTrabajadores();
+            renderResultado();
+        }
+
+        function trabajadoresReparto() {
+            return modoTrab() === 'todos' ? activos() : activos().filter(e => seleccion.has(e.cedula));
+        }
+
+        function prendasConUnidades() {
+            const gs = grupos();
+            return Object.entries(unidades).filter(([, n]) => n > 0).map(([clave, n]) => {
+                const g = gs.find(x => x.clave === clave);
+                const guardada = (reparto?.prendas || []).find(p => normTexto(p.descripcion) === clave);
+                return { clave, descripcion: g?.descripcion || guardada?.descripcion || clave, cantidad: n, stock: g?.total || 0 };
+            });
+        }
+
+        function renderResultado() {
+            const trabajadores = trabajadoresReparto();
+            const pendientes = trabajadores.filter(e => !entregadosPeriodo.has(e.cedula));
+            const yaRecibieron = trabajadores.length - pendientes.length;
+            document.getElementById('resumenTrab').innerText =
+                `${trabajadores.length} trabajadores en el reparto` + (yaRecibieron ? ` · ${yaRecibieron} ya recibieron su entrega en este periodo, faltan ${pendientes.length}` : '');
+
+            document.getElementById('tablaReparto').innerHTML = prendasConUnidades().map(p => {
+                const necesarias = p.cantidad * pendientes.length;
+                const dif = p.stock - necesarias;
+                const resultado = dif >= 0
+                    ? `<span class="text-green-600 font-bold">Alcanza</span>${dif > 0 ? ` <span class="text-slate-400">· sobran ${dif}</span>` : ''}`
+                    : `<span class="text-red-600 font-bold">Faltan ${-dif}</span>`;
+                return `<tr class="border-t border-slate-100">
+                    <td class="p-2.5 font-medium">${esc(p.descripcion)}</td>
+                    <td class="p-2.5 text-right">${p.cantidad}</td>
+                    <td class="p-2.5 text-right font-bold">${necesarias}</td>
+                    <td class="p-2.5 text-right">${p.stock}</td>
+                    <td class="p-2.5">${resultado}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Indica las unidades por persona para ver el resultado.</td></tr>';
+        }
+
+        async function guardarReparto() {
+            const prendas = prendasConUnidades().map(p => ({ descripcion: p.descripcion, cantidad: p.cantidad }));
+            const cedulas = trabajadoresReparto().map(e => e.cedula);
+            if (!periodoId()) return alert('Primero crea un periodo.');
+            if (!prendas.length) return alert('Indica cuántas unidades por persona de al menos una prenda.');
+            if (!cedulas.length) return alert('Selecciona al menos un trabajador.');
+            try {
+                await apiSend('../api/repartos.php', 'POST', { periodo_id: periodoId(), prendas, cedulas });
+                await cargarReparto();
+                alert('Reparto guardado. Al registrar la entrega de cada trabajador, sus prendas aparecerán ya cargadas.');
+            } catch (e) { alert('No se pudo guardar el reparto: ' + e.message); }
+        }
+
+        async function eliminarReparto() {
+            if (!confirm('¿Eliminar el reparto guardado de este periodo? No afecta las existencias ni las entregas ya registradas.')) return;
+            try {
+                await apiSend('../api/repartos.php', 'DELETE', { periodo_id: periodoId() });
+                await cargarReparto();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+        }
+
+        function exportarReparto() {
+            const prendas = prendasConUnidades();
+            const trabajadores = trabajadoresReparto();
+            if (!prendas.length || !trabajadores.length) return alert('Define las unidades por persona y los trabajadores antes de exportar.');
+            const periodo = periodos.find(p => p.id === periodoId());
+
+            const filas = [
+                [`PLANILLA DE REPARTO DE DOTACIÓN - ${periodo?.nombre || ''}`],
+                [`Generada: ${new Date().toLocaleString()}`],
+                [],
+                ['Cédula', 'Nombre', 'Cargo', ...prendas.map(p => p.descripcion), 'Estado', 'Tallas entregadas', 'Firma'],
+                ...trabajadores.map(e => [e.cedula, e.nombre, e.cargo, ...prendas.map(p => p.cantidad), entregadosPeriodo.has(e.cedula) ? 'Entregado' : 'Pendiente', '', '']),
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(filas);
+            ws['!cols'] = [{ wch: 14 }, { wch: 36 }, { wch: 16 }, ...prendas.map(() => ({ wch: 18 })), { wch: 12 }, { wch: 22 }, { wch: 24 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Reparto');
+            XLSX.writeFile(wb, `Reparto_${periodoId()}.xlsx`);
+        }
+
+        // ---------- Movimientos ----------
+        async function cargarMovimientos() {
+            const movs = await apiGet('../api/inventario.php?movimientos=1');
+            document.getElementById('tablaMovimientos').innerHTML = movs.map(m => `
+                <tr class="border-t border-slate-100">
+                    <td class="p-2.5 whitespace-nowrap text-slate-500">${esc(m.fecha)}</td>
+                    <td class="p-2.5">${esc(m.tipo)}</td>
+                    <td class="p-2.5">${esc(m.descripcion)}</td>
+                    <td class="p-2.5">${esc(m.talla)}</td>
+                    <td class="p-2.5 text-right font-bold ${m.cantidad < 0 ? 'text-red-500' : 'text-green-600'}">${m.cantidad > 0 ? '+' : ''}${m.cantidad}</td>
+                    <td class="p-2.5 text-slate-500">${esc(m.referencia)}</td>
+                </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Sin movimientos todavía.</td></tr>';
+        }
+        document.getElementById('detMovimientos').addEventListener('toggle', (e) => { if (e.target.open) cargarMovimientos(); });
+
+        init();
+    </script>
+</body>
+</html>

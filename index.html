@@ -74,10 +74,13 @@
                         </div>
                     </div>
                     <div class="space-y-2">
-                        <label class="block text-sm font-medium text-slate-700">Tipo de Camisa</label>
-                        <select id="shirt-type" class="w-full rounded-xl border-slate-200 bg-white py-3 custom-shadow">
-                            <option value="">Seleccione cédula primero</option>
-                        </select>
+                        <div class="flex items-center justify-between">
+                            <label class="block text-sm font-medium text-slate-700">Tipo de Camisa</label>
+                            <span id="shirt-type-counter" class="text-xs font-bold text-slate-400"></span>
+                        </div>
+                        <div id="shirt-type-options" class="space-y-2">
+                            <p class="text-xs text-slate-400">Selecciona una cédula primero.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -157,7 +160,7 @@
 
             const info = document.getElementById('user-info');
             const error = document.getElementById('error-msg');
-            const shirtSelect = document.getElementById('shirt-type');
+            const shirtOptions = document.getElementById('shirt-type-options');
             const campos = document.getElementById('camposDotacion');
 
             if (seleccionado) {
@@ -170,40 +173,71 @@
                 info.classList.add('hidden');
                 error.classList.remove('hidden');
                 campos.classList.add('hidden');
-                shirtSelect.innerHTML = '<option value="">Seleccione cédula primero</option>';
+                shirtOptions.innerHTML = '<p class="text-xs text-slate-400">Selecciona una cédula primero.</p>';
             }
         }
 
+        function limiteCamisasEmpleado() {
+            const limite = seleccionado?.limite_camisas;
+            if (typeof limite === 'number' && limite > 0) return limite;
+            return config.limite_camisas_default || 2;
+        }
+
         function actualizarFiltroCamisas(cargo) {
-            const shirtSelect = document.getElementById('shirt-type');
+            const cont = document.getElementById('shirt-type-options');
             const cfg = config.relacion_camisas.find(c => c.cargo === cargo);
 
-            if (cfg && cfg.tipos.length) {
-                shirtSelect.innerHTML = cfg.tipos.length > 1 ? '<option value="">Seleccionar tipo</option>' : '';
-                cfg.tipos.forEach(tipo => {
-                    shirtSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
-                });
-                if (cfg.tipos.length === 1) shirtSelect.value = cfg.tipos[0];
-            } else {
-                shirtSelect.innerHTML = '<option value="">Sin tipos configurados para este cargo</option>';
+            if (!cfg || !cfg.tipos.length) {
+                cont.innerHTML = '<p class="text-xs text-slate-400">Sin tipos configurados para este cargo.</p>';
+                document.getElementById('shirt-type-counter').innerText = '';
+                return;
             }
+
+            const limite = limiteCamisasEmpleado();
+            cont.innerHTML = cfg.tipos.map((tipo, i) => `
+                <label class="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer custom-shadow">
+                    <input type="checkbox" id="camisa_${i}" value="${tipo}" class="rounded shirt-type-check" onchange="onCambioCamisa()">
+                    <span class="text-sm font-medium text-slate-700">${tipo}</span>
+                </label>`).join('');
+
+            if (cfg.tipos.length === 1) {
+                document.getElementById('camisa_0').checked = true;
+            }
+            onCambioCamisa();
+        }
+
+        function onCambioCamisa() {
+            const limite = limiteCamisasEmpleado();
+            const checks = [...document.querySelectorAll('.shirt-type-check')];
+            const marcados = checks.filter(c => c.checked);
+
+            if (marcados.length > limite) {
+                // Si se pasó del límite, desmarca el último que se acaba de marcar.
+                const ultimo = marcados[marcados.length - 1];
+                ultimo.checked = false;
+                alert(`Solo puedes seleccionar hasta ${limite} tipo(s) de camisa.`);
+            }
+
+            const marcadosFinal = checks.filter(c => c.checked).length;
+            checks.forEach(c => { if (!c.checked) c.disabled = marcadosFinal >= limite; });
+            document.getElementById('shirt-type-counter').innerText = `${marcadosFinal} de ${limite} seleccionadas`;
         }
 
         document.getElementById('btnSave').onclick = async () => {
             if (!seleccionado) return alert('Ingresa una cédula válida registrada en el sistema.');
 
             const camisa = document.getElementById('shirt-size').value;
-            const tipoCamisa = document.getElementById('shirt-type').value;
+            const tiposCamisa = [...document.querySelectorAll('.shirt-type-check:checked')].map(c => c.value);
             const pantalon = document.getElementById('pants-size').value;
             const calzado = document.getElementById('shoe-size').value;
             const tipoCalzado = document.querySelector('input[name="shoe_type"]:checked')?.value;
 
-            if (!camisa || !tipoCamisa || !pantalon || !calzado || !tipoCalzado) {
-                return alert('Por favor completa todos los campos.');
+            if (!camisa || !tiposCamisa.length || !pantalon || !calzado || !tipoCalzado) {
+                return alert('Por favor completa todos los campos y selecciona al menos un tipo de camisa.');
             }
 
             const items = [
-                { categoria: 'Camisa', descripcion: tipoCamisa, talla: camisa, cantidad: 2 },
+                ...tiposCamisa.map(tipo => ({ categoria: 'Camisa', descripcion: tipo, talla: camisa, cantidad: 1 })),
                 { categoria: 'Pantalon', descripcion: etiquetaGenero(seleccionado.genero, 'Pantalón'), talla: pantalon, cantidad: 2 },
                 { categoria: 'Calzado', descripcion: tipoCalzado, talla: calzado, cantidad: 1 },
             ];

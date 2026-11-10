@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Préstamo de Equipos - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        input[type="checkbox"] { accent-color: #f15a24; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-4xl mx-auto p-6 space-y-8">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">Préstamo de Equipos</h1>
+            <p class="text-slate-500 text-sm">Arnés, casco, eslinga y demás equipos que se prestan y se devuelven. Cada préstamo genera un acta con la actividad y el estado de cada equipo.</p>
+        </div>
+
+        <!-- Nuevo préstamo -->
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <h2 class="font-bold text-slate-800">Nuevo préstamo</h2>
+
+            <div class="space-y-1 relative">
+                <label class="text-sm font-medium text-slate-700">Trabajador (cédula o nombre)</label>
+                <input id="buscarEmpleado" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Escribe para buscar...">
+                <div id="resultados" class="hidden absolute z-20 bg-white border border-slate-200 rounded-xl shadow-lg mt-1 w-full max-h-64 overflow-y-auto"></div>
+            </div>
+            <div id="empleadoInfo" class="hidden bg-orange-50 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div>
+                    <p id="infoNombre" class="font-bold text-slate-800"></p>
+                    <p id="infoDetalle" class="text-xs text-slate-500"></p>
+                </div>
+                <button onclick="limpiarSeleccion()" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined">close</span></button>
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Actividad para la que se prestan</label>
+                <input id="fActividad" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Ej: Mantenimiento de techo de la bodega (trabajo en alturas)">
+            </div>
+            <div class="grid sm:grid-cols-3 gap-3">
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Lugar</label>
+                    <input id="fLugar" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Opcional">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Devolución prevista</label>
+                    <input id="fDevolucion" type="date" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Quién entrega</label>
+                    <input id="fEntrega" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Nombre del responsable">
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <p class="text-sm font-medium text-slate-700">Equipos disponibles</p>
+                <div id="equiposDisponibles" class="space-y-2"></div>
+            </div>
+
+            <button onclick="registrarPrestamo()" class="w-full bg-brand-primary text-white font-bold py-3.5 rounded-xl shadow-lg flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">picture_as_pdf</span> Registrar préstamo y generar acta
+            </button>
+        </section>
+
+        <!-- Préstamos activos -->
+        <section class="space-y-3">
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Préstamos activos (pendientes de devolución)</h2>
+            <div id="listaActivos" class="space-y-2"></div>
+        </section>
+
+        <!-- Equipos -->
+        <section class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Equipos registrados</h2>
+                <button onclick="abrirEquipo()" class="bg-slate-800 text-white text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">add</span> Equipo
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                        <tr>
+                            <th class="text-left p-3">Código</th>
+                            <th class="text-left p-3">Tipo</th>
+                            <th class="text-left p-3">Marca / Serial</th>
+                            <th class="text-left p-3">Última inspección</th>
+                            <th class="text-left p-3">Estado</th>
+                            <th class="text-right p-3">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaEquipos"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Historial -->
+        <section class="space-y-3">
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-500">Historial de préstamos devueltos</h2>
+            <div id="listaDevueltos" class="space-y-2"></div>
+        </section>
+    </main>
+
+    <!-- Modal equipo -->
+    <div id="modalEquipo" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 id="modalEquipoTitulo" class="text-lg font-bold">Nuevo equipo</h2>
+            <input type="hidden" id="eId">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Código interno</label>
+                    <input id="eCodigo" class="w-full rounded-xl border-slate-200 py-2.5 px-3 uppercase" placeholder="Ej: ARN-01">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Tipo</label>
+                    <input id="eTipo" list="tiposEquipo" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Ej: Arnés">
+                    <datalist id="tiposEquipo">
+                        <option value="Arnés de cuerpo completo"><option value="Casco"><option value="Eslinga"><option value="Línea de vida"><option value="Mosquetón"><option value="Arrestador de caídas">
+                    </datalist>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Marca</label>
+                    <input id="eMarca" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Serial / lote</label>
+                    <input id="eSerial" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Fecha de la última inspección</label>
+                <input id="eInspeccion" type="date" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Observaciones</label>
+                <input id="eObs" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" id="eFuera" class="rounded"> Fuera de servicio (no se puede prestar)
+            </label>
+            <div class="flex gap-3 pt-2">
+                <button onclick="cerrarModal('modalEquipo')" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="guardarEquipo()" class="flex-1 bg-brand-primary text-white font-bold py-2.5 rounded-xl">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal devolución -->
+    <div id="modalDevolucion" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-lg font-bold">Registrar devolución</h2>
+            <p id="devInfo" class="text-sm text-slate-500"></p>
+            <div id="devItems" class="space-y-3"></div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Quién recibe</label>
+                <input id="devRecibe" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Nombre del responsable">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="cerrarModal('modalDevolucion')" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="confirmarDevolucion()" class="flex-1 bg-brand-primary text-white font-bold py-2.5 rounded-xl">Guardar devolución</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/logo.js"></script>
+    <script src="../js/pdf-prestamo.js"></script>
+    <script>
+        renderAdminNav('prestamos');
+
+        const ESTADOS_ENTREGA = ['Bueno', 'Regular', 'Malo'];
+        const ESTADOS_DEVOLUCION = ['Bueno', 'Regular', 'Dañado (fuera de servicio)'];
+
+        let empleados = [];
+        let equipos = [];
+        let prestamos = [];
+        let seleccionado = null;
+        let devolviendo = null;
+
+        function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        async function init() {
+            empleados = await apiGet('../api/empleados.php');
+            document.getElementById('fEntrega').value = localStorage.getItem('prestamo_entrega') || '';
+            await recargar();
+        }
+
+        async function recargar() {
+            [equipos, prestamos] = await Promise.all([apiGet('../api/equipos.php'), apiGet('../api/prestamos.php')]);
+            renderDisponibles();
+            renderEquipos();
+            renderPrestamos();
+        }
+
+        // ---------- Trabajador ----------
+        document.getElementById('buscarEmpleado').addEventListener('input', (e) => {
+            const q = normTexto(e.target.value);
+            const cont = document.getElementById('resultados');
+            if (q.length < 2) { cont.classList.add('hidden'); return; }
+            const matches = empleados.filter(emp => emp.activo && (normTexto(emp.nombre).includes(q) || emp.cedula.includes(q))).slice(0, 15);
+            cont.innerHTML = matches.map(emp => `
+                <button onclick='seleccionarEmpleado(${JSON.stringify(emp.cedula)})' class="w-full text-left p-3 hover:bg-orange-50 border-b border-slate-50 last:border-0">
+                    <p class="font-bold text-sm">${esc(emp.nombre)}</p>
+                    <p class="text-xs text-slate-400">C.C. ${esc(emp.cedula)} · ${esc(emp.cargo)}${emp.tipo_vinculacion === 'CONTRATISTA' ? ' · Contratista' : ''}</p>
+                </button>`).join('') || '<p class="p-3 text-sm text-slate-400">Sin resultados.</p>';
+            cont.classList.remove('hidden');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#buscarEmpleado') && !e.target.closest('#resultados')) {
+                document.getElementById('resultados').classList.add('hidden');
+            }
+        });
+
+        function seleccionarEmpleado(cedula) {
+            seleccionado = empleados.find(e => e.cedula === cedula);
+            document.getElementById('resultados').classList.add('hidden');
+            document.getElementById('buscarEmpleado').value = '';
+            document.getElementById('infoNombre').innerText = seleccionado.nombre;
+            let detalle = `C.C. ${seleccionado.cedula} · ${seleccionado.cargo}`;
+            if (seleccionado.tipo_vinculacion === 'CONTRATISTA') {
+                detalle += ` · Contratista · ARL: ${estadoArl(seleccionado).etiqueta}`;
+            }
+            document.getElementById('infoDetalle').innerText = detalle;
+            document.getElementById('empleadoInfo').classList.remove('hidden');
+        }
+
+        function limpiarSeleccion() {
+            seleccionado = null;
+            document.getElementById('empleadoInfo').classList.add('hidden');
+        }
+
+        // ---------- Nuevo préstamo ----------
+        function renderDisponibles() {
+            const disponibles = equipos.filter(e => e.estado === 'disponible');
+            document.getElementById('equiposDisponibles').innerHTML = disponibles.map(e => `
+                <div class="border border-slate-100 rounded-xl p-3 fila-equipo" data-id="${esc(e.id)}">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" class="rounded chk-equipo" onchange="this.closest('.fila-equipo').querySelector('.detalle-equipo').classList.toggle('hidden', !this.checked)">
+                        <span class="text-sm"><span class="font-bold">${esc(e.tipo)}</span> <span class="text-slate-500">· ${esc(e.codigo)}${e.marca ? ' · ' + esc(e.marca) : ''}${e.serial ? ' · S/N ' + esc(e.serial) : ''}</span></span>
+                    </label>
+                    <div class="detalle-equipo hidden grid sm:grid-cols-3 gap-2 mt-2 pl-7">
+                        <select class="rounded-lg border-slate-200 py-1.5 px-2 text-sm bg-white sel-estado">
+                            ${ESTADOS_ENTREGA.map(s => `<option>${s}</option>`).join('')}
+                        </select>
+                        <input class="sm:col-span-2 rounded-lg border-slate-200 py-1.5 px-2 text-sm inp-obs" placeholder="Observaciones del estado (opcional)">
+                    </div>
+                </div>`).join('') || '<p class="text-sm text-slate-400">No hay equipos disponibles. Regístralos abajo en "Equipos registrados".</p>';
+        }
+
+        async function registrarPrestamo() {
+            if (!seleccionado) return alert('Selecciona el trabajador.');
+            const actividad = document.getElementById('fActividad').value.trim();
+            if (!actividad) return alert('Indica la actividad para la que se prestan los equipos.');
+
+            const items = [...document.querySelectorAll('.fila-equipo')]
+                .filter(f => f.querySelector('.chk-equipo').checked)
+                .map(f => ({
+                    equipo_id: f.dataset.id,
+                    estado_entrega: f.querySelector('.sel-estado').value,
+                    observaciones: f.querySelector('.inp-obs').value.trim(),
+                }));
+            if (!items.length) return alert('Marca al menos un equipo.');
+
+            const entrega = document.getElementById('fEntrega').value.trim();
+            localStorage.setItem('prestamo_entrega', entrega);
+
+            try {
+                const res = await apiSend('../api/prestamos.php', 'POST', {
+                    cedula: seleccionado.cedula,
+                    nombre: seleccionado.nombre,
+                    cargo: seleccionado.cargo,
+                    vinculacion: seleccionado.tipo_vinculacion || 'EMPLEADO',
+                    actividad,
+                    lugar: document.getElementById('fLugar').value.trim(),
+                    fecha_devolucion_prevista: document.getElementById('fDevolucion').value,
+                    entrega,
+                    items,
+                });
+                descargarActaPrestamo(res.prestamo);
+                limpiarSeleccion();
+                ['fActividad', 'fLugar', 'fDevolucion'].forEach(id => { document.getElementById(id).value = ''; });
+                await recargar();
+            } catch (e) { alert('No se pudo registrar el préstamo: ' + e.message); }
+        }
+
+        // ---------- Listas de préstamos ----------
+        function tarjetaPrestamo(p) {
+            const activo = p.estado === 'activo';
+            const vencido = activo && p.fecha_devolucion_prevista && p.fecha_devolucion_prevista < hoyISO();
+            return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border ${vencido ? 'border-red-200' : 'border-slate-100'} space-y-2">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-bold text-sm">${esc(p.nombre)}</p>
+                            <p class="text-xs text-slate-400">C.C. ${esc(p.cedula)} · Prestado: ${esc(p.fecha_prestamo)}${p.fecha_devolucion ? ' · Devuelto: ' + esc(p.fecha_devolucion) : ''}</p>
+                            <p class="text-xs text-slate-600 mt-1"><span class="font-bold">Actividad:</span> ${esc(p.actividad)}</p>
+                            ${vencido ? `<p class="text-xs font-bold text-red-600 mt-1">Devolución prevista vencida (${esc(p.fecha_devolucion_prevista)})</p>` : ''}
+                        </div>
+                        <div class="flex flex-col gap-1 shrink-0">
+                            <button onclick='reimprimir(${JSON.stringify(p.id)})' class="flex items-center gap-1 bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl"><span class="material-symbols-outlined text-base">picture_as_pdf</span> Acta</button>
+                            ${activo ? `<button onclick='abrirDevolucion(${JSON.stringify(p.id)})' class="flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-xl"><span class="material-symbols-outlined text-base">assignment_return</span> Devolver</button>` : ''}
+                            <button onclick='eliminarPrestamo(${JSON.stringify(p.id)})' class="text-red-500 text-xs font-bold px-3 py-1">Eliminar</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        ${p.items.map(it => `<span class="px-2 py-0.5 bg-orange-50 text-brand-primary rounded text-[10px] font-black">${esc(it.tipo)} ${esc(it.codigo)} · ${esc(it.estado_entrega)}${it.estado_devolucion ? ' → ' + esc(it.estado_devolucion) : ''}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        function renderPrestamos() {
+            const activos = prestamos.filter(p => p.estado === 'activo');
+            const devueltos = prestamos.filter(p => p.estado !== 'activo');
+            document.getElementById('listaActivos').innerHTML = activos.map(tarjetaPrestamo).join('') || '<p class="text-sm text-slate-400 bg-white rounded-2xl p-5 border border-slate-100">No hay equipos prestados en este momento.</p>';
+            document.getElementById('listaDevueltos').innerHTML = devueltos.map(tarjetaPrestamo).join('') || '<p class="text-sm text-slate-400">Aún no hay préstamos devueltos.</p>';
+        }
+
+        function reimprimir(id) {
+            const p = prestamos.find(x => x.id === id);
+            if (p) descargarActaPrestamo(p);
+        }
+
+        async function eliminarPrestamo(id) {
+            const p = prestamos.find(x => x.id === id);
+            if (!p || !confirm(`¿Eliminar el préstamo de ${p.nombre}?${p.estado === 'activo' ? ' Los equipos volverán a quedar disponibles.' : ''}`)) return;
+            try {
+                await apiSend('../api/prestamos.php', 'DELETE', { id });
+                await recargar();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+        }
+
+        // ---------- Devolución ----------
+        function abrirDevolucion(id) {
+            devolviendo = prestamos.find(x => x.id === id);
+            if (!devolviendo) return;
+            document.getElementById('devInfo').innerText = `${devolviendo.nombre} · ${devolviendo.actividad}`;
+            document.getElementById('devRecibe').value = localStorage.getItem('prestamo_entrega') || '';
+            document.getElementById('devItems').innerHTML = devolviendo.items.map(it => `
+                <div class="border border-slate-100 rounded-xl p-3 space-y-2 fila-dev" data-id="${esc(it.equipo_id)}">
+                    <p class="text-sm"><span class="font-bold">${esc(it.tipo)}</span> <span class="text-slate-500">· ${esc(it.codigo)} · se entregó: ${esc(it.estado_entrega)}</span></p>
+                    <div class="grid sm:grid-cols-3 gap-2">
+                        <select class="rounded-lg border-slate-200 py-1.5 px-2 text-sm bg-white sel-estado">
+                            ${ESTADOS_DEVOLUCION.map(s => `<option>${s}</option>`).join('')}
+                        </select>
+                        <input class="sm:col-span-2 rounded-lg border-slate-200 py-1.5 px-2 text-sm inp-obs" placeholder="Observaciones (opcional)">
+                    </div>
+                </div>`).join('');
+            document.getElementById('modalDevolucion').classList.remove('hidden');
+        }
+
+        async function confirmarDevolucion() {
+            const items = [...document.querySelectorAll('.fila-dev')].map(f => ({
+                equipo_id: f.dataset.id,
+                estado_devolucion: f.querySelector('.sel-estado').value,
+                observaciones: f.querySelector('.inp-obs').value.trim(),
+            }));
+            try {
+                const res = await apiSend('../api/prestamos.php', 'POST', {
+                    action: 'devolver',
+                    id: devolviendo.id,
+                    items,
+                    recibe: document.getElementById('devRecibe').value.trim(),
+                });
+                cerrarModal('modalDevolucion');
+                if (confirm('Devolución registrada. ¿Descargar el acta con la devolución diligenciada?')) {
+                    descargarActaPrestamo(res.prestamo);
+                }
+                await recargar();
+            } catch (e) { alert('No se pudo registrar la devolución: ' + e.message); }
+        }
+
+        // ---------- Equipos ----------
+        const ETIQUETA_ESTADO = {
+            disponible: ['Disponible', 'bg-green-100 text-green-700'],
+            prestado: ['Prestado', 'bg-amber-100 text-amber-700'],
+            fuera_de_servicio: ['Fuera de servicio', 'bg-red-100 text-red-700'],
+        };
+
+        function renderEquipos() {
+            document.getElementById('tablaEquipos').innerHTML = equipos.map(e => {
+                const [texto, clase] = ETIQUETA_ESTADO[e.estado] || [e.estado, 'bg-slate-100 text-slate-500'];
+                return `<tr class="border-t border-slate-100">
+                    <td class="p-3 font-mono font-bold">${esc(e.codigo)}</td>
+                    <td class="p-3">${esc(e.tipo)}</td>
+                    <td class="p-3 text-slate-500">${esc([e.marca, e.serial].filter(Boolean).join(' / ')) || '—'}</td>
+                    <td class="p-3 text-slate-500">${esc(e.fecha_ultima_inspeccion) || '—'}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${clase}">${texto}</span></td>
+                    <td class="p-3 text-right whitespace-nowrap">
+                        <button onclick='abrirEquipo(${JSON.stringify(e.id)})' class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><span class="material-symbols-outlined text-base">edit</span></button>
+                        <button onclick='eliminarEquipo(${JSON.stringify(e.id)})' class="p-1.5 rounded-lg hover:bg-red-50 text-red-500"><span class="material-symbols-outlined text-base">delete</span></button>
+                    </td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Aún no hay equipos. Agrega cada arnés, casco o eslinga con su código.</td></tr>';
+        }
+
+        function abrirEquipo(id) {
+            const e = equipos.find(x => x.id === id);
+            document.getElementById('modalEquipoTitulo').innerText = e ? 'Editar equipo' : 'Nuevo equipo';
+            document.getElementById('eId').value = e ? e.id : '';
+            document.getElementById('eCodigo').value = e ? e.codigo : '';
+            document.getElementById('eTipo').value = e ? e.tipo : '';
+            document.getElementById('eMarca').value = e ? e.marca : '';
+            document.getElementById('eSerial').value = e ? e.serial : '';
+            document.getElementById('eInspeccion').value = e ? (e.fecha_ultima_inspeccion || '') : '';
+            document.getElementById('eObs').value = e ? e.observaciones : '';
+            document.getElementById('eFuera').checked = e ? e.estado === 'fuera_de_servicio' : false;
+            document.getElementById('eFuera').disabled = e ? e.estado === 'prestado' : false;
+            document.getElementById('modalEquipo').classList.remove('hidden');
+        }
+
+        async function guardarEquipo() {
+            const id = document.getElementById('eId').value;
+            const payload = {
+                id,
+                codigo: document.getElementById('eCodigo').value.trim(),
+                tipo: document.getElementById('eTipo').value.trim(),
+                marca: document.getElementById('eMarca').value.trim(),
+                serial: document.getElementById('eSerial').value.trim(),
+                fecha_ultima_inspeccion: document.getElementById('eInspeccion').value,
+                observaciones: document.getElementById('eObs').value.trim(),
+                fuera_de_servicio: document.getElementById('eFuera').checked,
+            };
+            if (!payload.codigo || !payload.tipo) return alert('El código y el tipo son obligatorios.');
+            try {
+                await apiSend('../api/equipos.php', id ? 'PUT' : 'POST', payload);
+                cerrarModal('modalEquipo');
+                await recargar();
+            } catch (e) { alert('No se pudo guardar: ' + e.message); }
+        }
+
+        async function eliminarEquipo(id) {
+            const e = equipos.find(x => x.id === id);
+            if (!e || !confirm(`¿Eliminar el equipo ${e.codigo} (${e.tipo})?`)) return;
+            try {
+                await apiSend('../api/equipos.php', 'DELETE', { id });
+                await recargar();
+            } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+        }
+
+        init();
+    </script>
+</body>
+</html>

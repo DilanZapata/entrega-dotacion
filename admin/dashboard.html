@@ -24,6 +24,8 @@
             <p class="text-slate-500 text-sm" id="periodoInfo">Cargando información del periodo...</p>
         </div>
 
+        <div id="alertas" class="space-y-2"></div>
+
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="stats"></div>
 
         <div>
@@ -43,6 +45,21 @@
                     <span class="material-symbols-outlined text-brand-primary text-3xl">shield</span>
                     <p class="font-bold text-sm">Entrega de EPP</p>
                     <p class="text-xs text-slate-500">Genera el formato en blanco por empleado y sube el escaneado al cerrarlo.</p>
+                </a>
+                <a href="inventario.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">inventory_2</span>
+                    <p class="font-bold text-sm">Inventario de Prendas</p>
+                    <p class="text-xs text-slate-500">Sube el inventario, repártelo entre los trabajadores y controla las existencias.</p>
+                </a>
+                <a href="prestamos.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">construction</span>
+                    <p class="font-bold text-sm">Préstamo de Equipos</p>
+                    <p class="text-xs text-slate-500">Arnés, casco, eslinga: acta de préstamo con actividad, estado y devolución.</p>
+                </a>
+                <a href="arl.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
+                    <span class="material-symbols-outlined text-brand-primary text-3xl">health_and_safety</span>
+                    <p class="font-bold text-sm">ARL de Contratistas</p>
+                    <p class="text-xs text-slate-500">Recordatorio de revisión y vigencia de la ARL de cada contratista.</p>
                 </a>
                 <a href="periodos.html" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-brand-primary transition-all flex flex-col gap-2">
                     <span class="material-symbols-outlined text-brand-primary text-3xl">event</span>
@@ -110,6 +127,44 @@
             ].join('');
         }
 
+        // Recordatorios: ARL de contratistas por revisar y préstamos de equipos sin devolver.
+        async function cargarAlertas() {
+            const [empleados, prestamos] = await Promise.all([
+                apiGet('../api/empleados.php'),
+                apiGet('../api/prestamos.php'),
+            ]);
+            const alerta = (href, icono, color, titulo, detalle) => `
+                <a href="${href}" class="flex items-center gap-3 rounded-2xl p-4 border ${color}">
+                    <span class="material-symbols-outlined text-2xl">${icono}</span>
+                    <span class="flex-1"><span class="block font-bold text-sm">${titulo}</span><span class="block text-xs opacity-80">${detalle}</span></span>
+                    <span class="material-symbols-outlined">chevron_right</span>
+                </a>`;
+            const bloques = [];
+
+            const arlPendientes = empleados
+                .filter(e => e.activo && e.tipo_vinculacion === 'CONTRATISTA')
+                .map(e => ({ e, estado: estadoArl(e) }))
+                .filter(x => x.estado.pendiente);
+            if (arlPendientes.length) {
+                const nombres = arlPendientes.slice(0, 3).map(x => `${esc(x.e.nombre)} (${x.estado.etiqueta.toLowerCase()})`).join(', ');
+                bloques.push(alerta('arl.html', 'health_and_safety', 'bg-red-50 border-red-200 text-red-800',
+                    `Revisar la ARL de ${arlPendientes.length} contratista${arlPendientes.length > 1 ? 's' : ''}`,
+                    nombres + (arlPendientes.length > 3 ? ` y ${arlPendientes.length - 3} más` : '')));
+            }
+
+            const activos = prestamos.filter(p => p.estado === 'activo');
+            const vencidos = activos.filter(p => p.fecha_devolucion_prevista && p.fecha_devolucion_prevista < hoyISO());
+            if (activos.length) {
+                bloques.push(alerta('prestamos.html', 'construction',
+                    vencidos.length ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800',
+                    `${activos.length} préstamo${activos.length > 1 ? 's' : ''} de equipos sin devolver`,
+                    vencidos.length ? `${vencidos.length} con la fecha de devolución vencida` : 'Equipos actualmente en poder de los trabajadores'));
+            }
+
+            document.getElementById('alertas').innerHTML = bloques.join('');
+        }
+
+        cargarAlertas();
         cargarDashboard();
     </script>
 </body>

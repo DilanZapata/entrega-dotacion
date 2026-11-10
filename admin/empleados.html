@@ -71,6 +71,17 @@
                     </select>
                 </div>
             </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Tipo de vinculación</label>
+                <select id="fVinculacion" class="w-full rounded-xl border-slate-200 py-2.5 px-3 bg-white">
+                    <option value="EMPLEADO">Empleado directo</option>
+                    <option value="CONTRATISTA">Contratista (se controla su ARL)</option>
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Límite de camisas (opcional)</label>
+                <input id="fLimiteCamisas" type="number" min="1" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Vacío = usar el límite por defecto del catálogo">
+            </div>
             <label class="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" id="fActivo" checked class="rounded"> Empleado activo
             </label>
@@ -106,7 +117,7 @@
                 <tr class="border-t border-slate-100">
                     <td class="p-3 font-mono">${e.cedula}</td>
                     <td class="p-3 font-medium">${e.nombre}</td>
-                    <td class="p-3">${e.cargo}</td>
+                    <td class="p-3">${e.cargo}${e.tipo_vinculacion === 'CONTRATISTA' ? ' <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-blue-100 text-blue-700">contratista</span>' : ''}</td>
                     <td class="p-3">${e.genero}</td>
                     <td class="p-3">
                         <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${e.activo ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">
@@ -128,6 +139,8 @@
             document.getElementById('fNombre').value = '';
             document.getElementById('fCargo').value = '';
             document.getElementById('fGenero').value = 'HOMBRE';
+            document.getElementById('fVinculacion').value = 'EMPLEADO';
+            document.getElementById('fLimiteCamisas').value = '';
             document.getElementById('fActivo').checked = true;
             document.getElementById('modal').classList.remove('hidden');
         }
@@ -142,6 +155,8 @@
             document.getElementById('fNombre').value = e.nombre;
             document.getElementById('fCargo').value = e.cargo;
             document.getElementById('fGenero').value = e.genero;
+            document.getElementById('fVinculacion').value = e.tipo_vinculacion === 'CONTRATISTA' ? 'CONTRATISTA' : 'EMPLEADO';
+            document.getElementById('fLimiteCamisas').value = e.limite_camisas ?? '';
             document.getElementById('fActivo').checked = !!e.activo;
             document.getElementById('modal').classList.remove('hidden');
         }
@@ -155,6 +170,8 @@
                 nombre: document.getElementById('fNombre').value.trim(),
                 cargo: document.getElementById('fCargo').value.trim(),
                 genero: document.getElementById('fGenero').value,
+                tipo_vinculacion: document.getElementById('fVinculacion').value,
+                limite_camisas: document.getElementById('fLimiteCamisas').value.trim(),
                 activo: document.getElementById('fActivo').checked,
             };
             if (!payload.cedula || !payload.nombre || !payload.cargo) return alert('Cédula, nombre y cargo son obligatorios.');

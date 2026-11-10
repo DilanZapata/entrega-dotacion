@@ -54,10 +54,9 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-y-6">
-                    <div>
+                    <div class="col-span-2">
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Camisa</p>
-                        <p id="resCamisa" class="text-xl font-black text-orange-400">--</p>
-                        <p id="resTipoCamisa" class="text-[10px] font-bold text-white/70 italic">--</p>
+                        <div id="resCamisas" class="space-y-0.5"></div>
                     </div>
                     <div>
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Pantalón</p>
@@ -103,7 +102,7 @@
         if (!datos) {
             window.location.href = 'index.html';
         } else {
-            const camisa = datos.items.find(i => i.categoria === 'Camisa');
+            const camisas = datos.items.filter(i => i.categoria === 'Camisa');
             const pantalon = datos.items.find(i => i.categoria === 'Pantalon');
             const calzado = datos.items.find(i => i.categoria === 'Calzado');
 
@@ -112,8 +111,11 @@
             document.getElementById('resCedula').innerText = `C.C. ${datos.cedula}`;
             document.getElementById('resCargo').innerText = datos.cargo || 'No asignado';
 
-            document.getElementById('resCamisa').innerText = `Talla ${camisa?.talla || '--'}`;
-            document.getElementById('resTipoCamisa').innerText = camisa?.descripcion || '--';
+            document.getElementById('resCamisas').innerHTML = camisas.length
+                ? camisas.map(c => `
+                    <p class="text-sm font-black text-orange-400">${c.descripcion} <span class="text-white/70 font-bold text-xs">· Talla ${c.talla}</span></p>
+                `).join('')
+                : '<p class="text-xl font-black text-orange-400">--</p>';
 
             document.getElementById('resPantalon').innerText = `Talla ${pantalon?.talla || '--'}`;
 

@@ -30,6 +30,15 @@
         </div>
 
         <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+            <h2 class="font-bold text-slate-800">Límite de Camisas por Solicitud</h2>
+            <p class="text-xs text-slate-500">Cantidad máxima de tipos de camisa que un empleado puede marcar en su solicitud. Se puede sobrescribir individualmente por empleado en la sección "Empleados".</p>
+            <div class="flex items-center gap-2">
+                <input id="inputLimiteCamisas" type="number" min="1" class="w-24 rounded-xl border-slate-200 py-2 px-3 text-sm">
+                <span class="text-sm text-slate-500">tipos de camisa por defecto</span>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
             <h2 class="font-bold text-slate-800">Tallas de Pantalón</h2>
             <div id="chipsPantalon" class="flex flex-wrap gap-2"></div>
             <div class="flex gap-2">
@@ -82,6 +91,7 @@
 
         async function cargar() {
             config = await apiGet('../api/config.php');
+            document.getElementById('inputLimiteCamisas').value = config.limite_camisas_default || 2;
             renderChips('tallas_pantalon', 'chipsPantalon');
             renderChips('tallas_camisa', 'chipsCamisa');
             renderChips('tipos_calzado', 'chipsCalzado');
@@ -158,6 +168,7 @@
         }
 
         async function guardarConfig() {
+            config.limite_camisas_default = parseInt(document.getElementById('inputLimiteCamisas').value, 10) || 2;
             try {
                 await apiSend('../api/config.php', 'POST', config);
                 const status = document.getElementById('saveStatus');

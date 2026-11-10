@@ -1,4 +1,5 @@
 {
+  "limite_camisas_default": 2,
   "tallas_pantalon": ["6", "8", "10", "12", "14", "16", "18", "28", "30", "32", "34", "36", "38", "40", "NINGUNO", "Negociacion"],
   "tallas_camisa": ["S", "M", "L", "XL", "XXL", "3XL"],
   "tipos_calzado": ["Guayos", "Zapatos Puntera", "Bota Pantanera", "Negociacion"],

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/_lib.php';
+require_once __DIR__ . '/_inventario.php';
 
 require_admin();
 
@@ -38,6 +39,14 @@ if ($method === 'POST') {
         }
     }
 
+    // Inventario: si se está corrigiendo una entrega previa, primero se reintegra lo que
+    // había descontado y luego se descuenta lo nuevo.
+    $referencia = 'Entrega a ' . ($input['nombre'] ?? $cedula);
+    if ($indice !== -1) {
+        inv_reintegrar($entregas[$indice]['inventario_descontado'] ?? [], 'Corrección: ' . $referencia);
+    }
+    $descontado = inv_descontar($items, $referencia);
+
     $registro = [
         'id' => $indice !== -1 ? $entregas[$indice]['id'] : uuid_v4(),
         'periodo_id' => $periodoId,
@@ -46,6 +55,7 @@ if ($method === 'POST') {
         'nombre' => $input['nombre'] ?? '',
         'cargo' => $input['cargo'] ?? '',
         'items_entregados' => $items,
+        'inventario_descontado' => $descontado,
         'fecha_entrega' => date('Y-m-d H:i:s'),
     ];
 
@@ -83,6 +93,7 @@ if ($method === 'DELETE') {
 
     $filtered = array_values(array_filter($entregas, fn($e) => $e['id'] !== $id));
     write_json_file('entregas.json', $filtered);
+    inv_reintegrar($objetivo['inventario_descontado'] ?? [], 'Entrega eliminada: ' . ($objetivo['nombre'] ?? ''));
 
     // Revertir el estado de la solicitud asociada a "pendiente".
     $solicitudes = read_json_file('solicitudes.json');

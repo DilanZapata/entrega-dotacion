@@ -97,12 +97,14 @@
         let config = null;
         let seleccionado = null;
         let entregaPrevia = null;
+        let inventario = [];
 
         async function init() {
-            [periodos, empleados, config] = await Promise.all([
+            [periodos, empleados, config, inventario] = await Promise.all([
                 apiGet('../api/periodos.php'),
                 apiGet('../api/empleados.php'),
                 apiGet('../api/config.php'),
+                apiGet('../api/inventario.php'),
             ]);
 
             const activoIdx = periodos.findIndex(p => p.estado === 'activo');
@@ -115,12 +117,42 @@
             });
 
             const sugerencias = new Set();
-            config.tallas_pantalon.forEach(() => {});
+            inventario.forEach(i => sugerencias.add(i.descripcion));
             config.relacion_camisas.forEach(c => c.tipos.forEach(t => sugerencias.add(t)));
             config.tipos_calzado.forEach(t => sugerencias.add(t));
             document.getElementById('sugerenciasDescripcion').innerHTML =
-                [...sugerencias].map(s => `<option value="${s}">`).join('');
+                [...sugerencias].map(s => `<option value="${esc(s)}">`).join('');
+
+            // Permite llegar con el trabajador ya elegido: entrega.html?cedula=123
+            const cedulaInicial = new URLSearchParams(location.search).get('cedula');
+            if (cedulaInicial && empleados.some(e => e.cedula === cedulaInicial)) {
+                await seleccionarEmpleado(cedulaInicial);
+            }
         }
+
+        // Muestra bajo cada fila qué tallas de esa prenda hay en inventario.
+        function actualizarStock(tr) {
+            const hint = tr.querySelector('.stock-hint');
+            const desc = normTexto(tr.querySelector('.desc').value);
+            const talla = normTexto(tr.querySelector('.talla').value);
+            const cant = parseInt(tr.querySelector('.cant').value, 10) || 0;
+            const enInventario = inventario.filter(i => normTexto(i.descripcion) === desc);
+
+            if (!desc || !enInventario.length) { hint.innerHTML = ''; return; }
+
+            const tallas = enInventario.filter(i => i.cantidad > 0)
+                .map(i => `${esc(i.talla) || 'única'} (${i.cantidad})`).join(' · ') || 'sin existencias';
+            const exacta = enInventario.find(i => normTexto(i.talla) === talla);
+            let aviso = '';
+            if (talla && !exacta) aviso = ` <span class="text-red-500 font-bold">— no hay talla ${esc(tr.querySelector('.talla').value)}</span>`;
+            else if (exacta && exacta.cantidad < cant) aviso = ` <span class="text-red-500 font-bold">— solo hay ${exacta.cantidad} en esa talla</span>`;
+            hint.innerHTML = `Inventario: ${tallas}${aviso}`;
+        }
+
+        document.getElementById('filasItems').addEventListener('input', (e) => {
+            const tr = e.target.closest('tr');
+            if (tr) actualizarStock(tr);
+        });
 
         document.getElementById('buscarEmpleado').addEventListener('input', (e) => {
             const q = e.target.value.trim().toLowerCase();
@@ -168,17 +200,27 @@
             const periodoId = document.getElementById('selectPeriodo').value;
             const aviso = document.getElementById('avisoEntregaPrevia');
 
-            const [solicitud, entregasPeriodo] = await Promise.all([
+            const [solicitud, entregasPeriodo, reparto] = await Promise.all([
                 apiGet(`../api/solicitudes.php?cedula=${encodeURIComponent(seleccionado.cedula)}&periodo_id=${encodeURIComponent(periodoId)}`),
                 apiGet(`../api/entregas.php?periodo_id=${encodeURIComponent(periodoId)}`),
+                apiGet(`../api/repartos.php?periodo_id=${encodeURIComponent(periodoId)}`),
             ]);
 
             entregaPrevia = entregasPeriodo.find(e => e.cedula === seleccionado.cedula) || null;
+            const enReparto = reparto && reparto.cedulas.includes(seleccionado.cedula);
 
             if (entregaPrevia) {
                 aviso.innerText = `Ya se registró una entrega para este empleado en este periodo (${entregaPrevia.fecha_entrega}). Puedes corregirla y volver a generar el acta.`;
                 aviso.classList.remove('hidden');
                 cargarFilas(entregaPrevia.items_entregados);
+            } else if (enReparto) {
+                // Prendas y cantidades vienen del reparto; la talla se sugiere de la solicitud si coincide la prenda.
+                aviso.innerText = 'Prendas cargadas desde el reparto de inventario. Completa la talla de cada una antes de generar el acta.';
+                aviso.classList.remove('hidden');
+                cargarFilas(reparto.prendas.map(p => {
+                    const pedida = (solicitud?.items || []).find(i => normTexto(i.descripcion) === normTexto(p.descripcion));
+                    return { descripcion: p.descripcion, talla: pedida?.talla || '', cantidad: p.cantidad };
+                }));
             } else if (solicitud) {
                 aviso.classList.add('hidden');
                 cargarFilas(solicitud.items.map(i => ({ descripcion: i.descripcion, talla: i.talla, cantidad: i.cantidad })));
@@ -193,15 +235,20 @@
             return `
                 <tr class="border-t border-slate-100">
                     <td class="p-2"><input type="checkbox" checked class="chk-incluir"></td>
-                    <td class="p-2"><input list="sugerenciasDescripcion" value="${item.descripcion || ''}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 desc"></td>
-                    <td class="p-2"><input value="${item.talla || ''}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 talla"></td>
+                    <td class="p-2">
+                        <input list="sugerenciasDescripcion" value="${esc(item.descripcion)}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 desc">
+                        <p class="stock-hint text-[10px] text-slate-400 mt-0.5"></p>
+                    </td>
+                    <td class="p-2 align-top"><input value="${esc(item.talla)}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 talla"></td>
                     <td class="p-2"><input type="number" min="1" value="${item.cantidad || 1}" class="w-full rounded-lg border-slate-200 py-1.5 px-2 cant"></td>
                     <td class="p-2"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600"><span class="material-symbols-outlined text-base">delete</span></button></td>
                 </tr>`;
         }
 
         function cargarFilas(items) {
-            document.getElementById('filasItems').innerHTML = items.map(filaHTML).join('') || filaHTML();
+            const tbody = document.getElementById('filasItems');
+            tbody.innerHTML = items.map(filaHTML).join('') || filaHTML();
+            tbody.querySelectorAll('tr').forEach(actualizarStock);
         }
 
         function agregarFila() {
@@ -244,6 +291,7 @@
                 });
                 alert('Entrega guardada y acta generada correctamente.');
                 limpiarSeleccion();
+                inventario = await apiGet('../api/inventario.php');
             } catch (e) {
                 alert('No se pudo registrar la entrega: ' + e.message);
             }

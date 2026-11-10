@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>ARL de Contratistas - Admin Dotación</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { primary: '#f15a24' } } } } }
+    </script>
+    <style>body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="adminNav"></div>
+
+    <main class="max-w-5xl mx-auto p-6 space-y-6">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">ARL de Contratistas</h1>
+            <p class="text-slate-500 text-sm">El sistema avisa cuando toca revisar la ARL de cada contratista: cada 30 días, y cuando la vigencia está por vencer o ya venció.</p>
+        </div>
+
+        <div id="resumen" class="grid grid-cols-3 gap-3"></div>
+
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-xl text-xs text-blue-900 leading-relaxed">
+            La ARL no se puede validar automáticamente: la consulta oficial (RUAF) pide un código de verificación que debe resolver una persona.
+            Usa <b>Consultar</b> para abrir la consulta (la cédula queda copiada para pegarla), confirma que la afiliación esté activa y luego marca <b>Revisada hoy</b>.
+        </div>
+
+        <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-2">
+            <h2 class="font-bold text-slate-800 text-sm">Agregar contratista</h2>
+            <p class="text-xs text-slate-500">Elige un trabajador ya registrado para marcarlo como contratista. Si aún no existe, créalo primero en "Empleados".</p>
+            <div class="flex gap-2">
+                <select id="selNuevo" class="flex-1 rounded-xl border-slate-200 py-2.5 px-3 bg-white text-sm"></select>
+                <button onclick="agregarContratista()" class="bg-brand-primary text-white font-bold px-4 rounded-xl text-sm shrink-0">Marcar como contratista</button>
+            </div>
+        </section>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-black">
+                    <tr>
+                        <th class="text-left p-3">Contratista</th>
+                        <th class="text-left p-3">ARL</th>
+                        <th class="text-left p-3">Vigente hasta</th>
+                        <th class="text-left p-3">Última revisión</th>
+                        <th class="text-left p-3">Estado</th>
+                        <th class="text-right p-3">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Modal datos ARL -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+                <h2 class="text-lg font-bold">Datos de la ARL</h2>
+                <p id="mNombre" class="text-sm text-slate-500"></p>
+            </div>
+            <input type="hidden" id="mCedula">
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Administradora (ARL)</label>
+                <input id="mArl" list="listaArl" class="w-full rounded-xl border-slate-200 py-2.5 px-3" placeholder="Ej: Positiva">
+                <datalist id="listaArl">
+                    <option value="Positiva"><option value="SURA"><option value="Colmena Seguros"><option value="Seguros Bolívar"><option value="AXA Colpatria"><option value="La Equidad Seguros">
+                </datalist>
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Número de afiliación o certificado</label>
+                <input id="mNumero" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+            </div>
+            <div class="space-y-1">
+                <label class="text-sm font-medium text-slate-700">Cobertura vigente hasta</label>
+                <input id="mVigente" type="date" class="w-full rounded-xl border-slate-200 py-2.5 px-3">
+                <p class="text-[11px] text-slate-400">Fecha hasta la que el certificado o el último pago cubre al contratista.</p>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" id="mRevisada" checked class="rounded"> La revisé hoy y está activa
+            </label>
+            <div class="flex gap-3 pt-2">
+                <button onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onclick="guardar()" class="flex-1 bg-brand-primary text-white font-bold py-2.5 rounded-xl">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/admin-guard.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        renderAdminNav('arl');
+
+        const URL_CONSULTA_ARL = 'https://ruaf.sispro.gov.co/';
+        let empleados = [];
+
+        const contratistas = () => empleados.filter(e => e.tipo_vinculacion === 'CONTRATISTA' && e.activo);
+
+        async function cargar() {
+            empleados = await apiGet('../api/empleados.php');
+            render();
+        }
+
+        function render() {
+            const lista = contratistas().map(e => ({ e, estado: estadoArl(e) }))
+                .sort((a, b) => Number(b.estado.pendiente) - Number(a.estado.pendiente) || a.e.nombre.localeCompare(b.e.nombre));
+            const pendientes = lista.filter(x => x.estado.pendiente).length;
+
+            const tarjeta = (valor, texto, color) => `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <p class="text-2xl font-black ${color}">${valor}</p>
+                    <p class="text-xs text-slate-500 font-medium">${texto}</p>
+                </div>`;
+            document.getElementById('resumen').innerHTML =
+                tarjeta(lista.length, 'Contratistas activos', 'text-slate-800') +
+                tarjeta(pendientes, 'Requieren revisión', pendientes ? 'text-red-600' : 'text-slate-800') +
+                tarjeta(lista.length - pendientes, 'Al día', 'text-green-600');
+
+            document.getElementById('tabla').innerHTML = lista.map(({ e, estado }) => `
+                <tr class="border-t border-slate-100">
+                    <td class="p-3">
+                        <p class="font-bold">${esc(e.nombre)}</p>
+                        <p class="text-xs text-slate-400">C.C. ${esc(e.cedula)} · ${esc(e.cargo)}</p>
+                    </td>
+                    <td class="p-3">
+                        <p>${esc(e.arl_nombre) || '<span class="text-slate-300">—</span>'}</p>
+                        <p class="text-xs text-slate-400">${e.arl_numero ? 'N.º ' + esc(e.arl_numero) : ''}</p>
+                    </td>
+                    <td class="p-3 whitespace-nowrap">${esc(e.arl_vigente_hasta) || '<span class="text-slate-300">—</span>'}</td>
+                    <td class="p-3 whitespace-nowrap">${esc(e.arl_ultima_revision) || '<span class="text-slate-300">nunca</span>'}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase whitespace-nowrap ${estado.clase}">${estado.etiqueta}</span></td>
+                    <td class="p-3 text-right whitespace-nowrap">
+                        <button onclick='consultar(${JSON.stringify(e.cedula)})' class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 text-white">Consultar</button>
+                        <button onclick='marcarRevisada(${JSON.stringify(e.cedula)})' class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-green-600 text-white">Revisada hoy</button>
+                        <button onclick='editar(${JSON.stringify(e.cedula)})' title="Editar datos" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 align-middle"><span class="material-symbols-outlined text-base">edit</span></button>
+                        <button onclick='quitar(${JSON.stringify(e.cedula)})' title="Ya no es contratista" class="p-1.5 rounded-lg hover:bg-red-50 text-red-500 align-middle"><span class="material-symbols-outlined text-base">person_remove</span></button>
+                    </td>
+                </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-10">No hay contratistas registrados.</td></tr>';
+
+            const candidatos = empleados.filter(e => e.activo && e.tipo_vinculacion !== 'CONTRATISTA');
+            document.getElementById('selNuevo').innerHTML = '<option value="">Seleccionar trabajador...</option>' +
+                candidatos.map(e => `<option value="${esc(e.cedula)}">${esc(e.nombre)} · ${esc(e.cedula)}</option>`).join('');
+        }
+
+        async function actualizar(cedula, cambios) {
+            try {
+                await apiSend('../api/empleados.php', 'PUT', { cedula, ...cambios });
+                await cargar();
+            } catch (e) { alert('No se pudo guardar: ' + e.message); }
+        }
+
+        async function agregarContratista() {
+            const cedula = document.getElementById('selNuevo').value;
+            if (!cedula) return alert('Selecciona un trabajador.');
+            await actualizar(cedula, { tipo_vinculacion: 'CONTRATISTA' });
+            editar(cedula);
+        }
+
+        function quitar(cedula) {
+            const e = empleados.find(x => x.cedula === cedula);
+            if (!confirm(`¿${e.nombre} ya no es contratista? Dejará de aparecer en esta lista (sus datos de ARL se conservan).`)) return;
+            actualizar(cedula, { tipo_vinculacion: 'EMPLEADO' });
+        }
+
+        async function consultar(cedula) {
+            try { await navigator.clipboard.writeText(cedula); } catch (e) { /* si el navegador no deja copiar, se sigue igual */ }
+            window.open(URL_CONSULTA_ARL, '_blank', 'noopener');
+        }
+
+        function marcarRevisada(cedula) {
+            const e = empleados.find(x => x.cedula === cedula);
+            if (e.arl_vigente_hasta && e.arl_vigente_hasta < hoyISO()) {
+                alert('La fecha de vigencia registrada ya pasó. Actualiza la fecha "vigente hasta" con el nuevo certificado o pago.');
+                return editar(cedula);
+            }
+            actualizar(cedula, { arl_ultima_revision: hoyISO() });
+        }
+
+        function editar(cedula) {
+            const e = empleados.find(x => x.cedula === cedula);
+            if (!e) return;
+            document.getElementById('mCedula').value = e.cedula;
+            document.getElementById('mNombre').innerText = `${e.nombre} · C.C. ${e.cedula}`;
+            document.getElementById('mArl').value = e.arl_nombre || '';
+            document.getElementById('mNumero').value = e.arl_numero || '';
+            document.getElementById('mVigente').value = e.arl_vigente_hasta || '';
+            document.getElementById('mRevisada').checked = true;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        async function guardar() {
+            const cambios = {
+                arl_nombre: document.getElementById('mArl').value.trim(),
+                arl_numero: document.getElementById('mNumero').value.trim(),
+                arl_vigente_hasta: document.getElementById('mVigente').value,
+            };
+            if (document.getElementById('mRevisada').checked) cambios.arl_ultima_revision = hoyISO();
+            document.getElementById('modal').classList.add('hidden');
+            await actualizar(document.getElementById('mCedula').value, cambios);
+        }
+
+        cargar();
+    </script>
+</body>
+</html>

@@ -12,7 +12,11 @@ require_admin();
 if ($method === 'POST' || $method === 'PUT') {
     $input = read_body();
 
+    $limiteCamisas = (int)($input['limite_camisas_default'] ?? 2);
+    if ($limiteCamisas < 1) $limiteCamisas = 1;
+
     $config = [
+        'limite_camisas_default' => $limiteCamisas,
         'tallas_pantalon' => array_values($input['tallas_pantalon'] ?? []),
         'tallas_camisa' => array_values($input['tallas_camisa'] ?? []),
         'tipos_calzado' => array_values($input['tipos_calzado'] ?? []),
